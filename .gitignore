@@ -1,0 +1,13 @@
+*.bin
+*.img
+*.log
+*.work
+*.tar
+*.tar.gz
+*.pcap
+*.pcapng
+SHA256SUMS
+/C6500XK-backup/
+/private/
+/.venv/
+/analysis/

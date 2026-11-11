@@ -9,6 +9,8 @@
 > [!IMPORTANT]
 > Use an existing root shell and a verified USB mount. Keep raw images private. The live UBI capture can contain changes made during the read and needs a separate restore plan before any flash operation.
 
+[Read the C6500XK cutover report](docs/c6500xk-cutover.md) for the working XGS-PON setup and wired benchmarks.
+
 ## Contents
 
 - [Quick reference](#quick-reference)

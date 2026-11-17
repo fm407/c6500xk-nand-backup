@@ -653,3 +653,17 @@ Equipment ID, serial, IP-host MAC and bank selection are per-unit. They are read
 
 The software-version variables accept an extraction pattern rather than a literal in some builds. Where that applies, the pattern is stored base64-encoded in the environment and decodes to a single capturing group such as `^(\d{2}(?:\.\d{2}){3})$`, with group 1 used as the reported version. That pattern selects digits out of a string; it does not select a firmware bank.
 
+### F.5 Sample profile
+
+[profiles/c6500xk-sample.ini](profiles/c6500xk-sample.ini) is the profile format with the two per-unit values replaced by placeholders. Everything else is already correct for a C6500XK: the vendor product code, the traffic-scheduler and queue counts, the traffic-management option, and the blank serial that the daemon fills from PLOAM.
+
+Only two things need editing:
+
+| Placeholder | Occurrences | Replace with |
+| --- | ---: | --- |
+| `XXXX` | 4 | the first four characters of your FSAN |
+| `XXXXXXXXXX` | 7 | your ten-character CLEI, leaving the trailing `\0` padding intact |
+
+Do not set the serial to a literal, and do not upload the file with the placeholders still in it — it would present a wrong vendor ID and a wrong equipment ID.
+
+Two honest limits. The file was normalised by the module's own daemon from a real unit, so it reflects that daemon version's output rather than the shipped template byte for byte. And it was observed on one line against one OLT; the OLT-owned service provisioning is replayed at runtime and is not contained in this file at all.

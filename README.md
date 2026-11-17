@@ -664,6 +664,6 @@ Only two things need editing:
 | `XXXX` | 4 | the first four characters of your FSAN |
 | `XXXXXXXXXX` | 7 | your ten-character CLEI, leaving the trailing `\0` padding intact |
 
-Do not set the serial to a literal, and do not upload the file with the placeholders still in it — it would present a wrong vendor ID and a wrong equipment ID.
+Do not set the serial to a literal, and do not upload the file with the placeholders still in it; it would present a wrong vendor ID and a wrong equipment ID.
 
 Two honest limits. The file was normalised by the module's own daemon from a real unit, so it reflects that daemon version's output rather than the shipped template byte for byte. And it was observed on one line against one OLT; the OLT-owned service provisioning is replayed at runtime and is not contained in this file at all.

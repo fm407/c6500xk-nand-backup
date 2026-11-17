@@ -31,6 +31,7 @@
 - [Appendix C. Offline firmware findings](#appendix-c-offline-firmware-findings)
 - [Appendix D. Router-side VLAN mode follows the loaded profile](#appendix-d-router-side-vlan-mode-follows-the-loaded-profile)
 - [Appendix E. No upstream rate cap in the replacement's OMCI contract](#appendix-e-no-upstream-rate-cap-in-the-replacements-omci-contract)
+- [Appendix F. Replacement identity checklist for a C6500XK swap](#appendix-f-replacement-identity-checklist-for-a-c6500xk-swap)
 
 ## Quick reference
 
@@ -579,3 +580,76 @@ The read-only traversal used two daemon verbs:
 omci_pipe.sh md                  # enumerate the managed entities in the MIB
 omci_pipe.sh meg <class> <inst>  # dump one entity, attribute by attribute
 ```
+
+## Appendix F. Replacement identity checklist for a C6500XK swap
+
+*Field verified 17 November 2026 on the installed replacement ONU. Every value below was read from the running unit and compared against the shipped templates.*
+
+The OLT compares a small set of attributes before it will provision service. Those attributes do not all come from the same place, and that split is the usual cause of a half-applied identity.
+
+| Reported attribute | Source | Masked example |
+| --- | --- | --- |
+| ONU-G vendor ID | first four characters of the serial | `<vendor>` |
+| ONU-G version (reported hardware) | hardware-version variable | `<model>` |
+| ONU-G serial number | four ASCII characters plus four binary bytes | `<pon-serial>` |
+| ONU2-G equipment ID | equipment ID / CLEI variable | `<equipment-id>` |
+| ONU2-G OMCC version | OMCC variable, mirrored into the OMCI config | `0xNN` |
+| ONU2-G vendor product code | **profile only** | `0xNNNN` |
+| ONU2-G total traffic schedulers | **profile only** | integer |
+| ONU2-G total priority queues | **profile only** | integer |
+| ONU2-G total GEM port ID number | **profile only** | integer |
+| ONU-G traffic management option | OMCI config, shipped default `2` | `2` |
+| PON slot | PON slot variable | integer |
+| IP host MAC | IP-host MAC variable | `<wan-mac>` |
+| Software A / B | software-version variables | `NN.NN.NN.NN` |
+| Reported active / committed bank | bank override variables | letter pair |
+
+### F.1 The two halves that get out of step
+
+The **profile-only** rows above are the ones to watch. They exist nowhere outside the loaded MIB, so they revert the moment the MIB pointer moves, while the environment-derived rows keep whatever the last `setenv` wrote.
+
+This was observed directly. After the pointer reverted to the stock template, the serial, vendor ID and equipment ID still read correctly on ONU-G, while the vendor product code came back as `0x0000` and the traffic-scheduler count fell from 16 to 8 on ONU2-G. Registration succeeded and the OLT provisioned service anyway, because it keys the subscriber on the serial. A working link is not evidence that the identity is complete.
+
+Note also that the reported hardware string is an OMCI value, not the printed hardware revision, and that the bank override changes what OMCI reports rather than which firmware image boots.
+
+### F.2 Environment beats configuration
+
+At boot the OMCI init script copies the pointer out of the U-Boot environment into the OMCI configuration, overwriting whatever is there:
+
+```sh
+tmp=$(fw_printenv -n <pointer-variable> 2>&-)
+[ -f "$tmp" ] && uci set omci.default.mib_file="$tmp"
+```
+
+The environment is therefore authoritative and the configuration database is downstream of it. A change that only reaches the configuration database, which is what a web-interface save does, looks correct until the next boot and then silently reverts.
+
+Set the pointer with the environment tool, read it back from the environment, and confirm it from the boot log rather than from any web page:
+
+```sh
+fw_setenv <pointer-variable> <profile-path>
+fw_printenv <pointer-variable>
+logread | grep -i 'MIB file'
+```
+
+Do not write the custom profile into the packaged template path. The daemon stores the effective MIB back into whatever path the pointer names, so the shipped template is destroyed and no longer matches the firmware image. See [Appendix D.2](#d2-the-daemon-overwrites-whichever-path-the-pointer-names).
+
+### F.3 Read-only verification
+
+Registration state alone is insufficient. Read the identity back from both management entities, plus the two mask variables, which are separate and must not be conflated:
+
+```sh
+omci_pipe.sh meg 256 0     # ONU-G: vendor, version, serial, traffic-management option
+omci_pipe.sh meg 257 0     # ONU2-G: equipment id, OMCC, product code, queue and scheduler counts
+pon gsg                    # expect O5.1, FEC state, upstream and downstream rate
+fw_printenv | grep -i -E 'iop_mask|mib_file'
+uci get gpon.ponip.iop_mask
+```
+
+A boot log line reporting a prompt-state of `51` is O5.1, which means associated. It does not by itself mean a lease was issued; the check for that is a WAN DHCP lease and working Internet access.
+
+### F.4 Do not reuse another subscriber's values
+
+Equipment ID, serial, IP-host MAC and bank selection are per-unit. They are read from the original modem, not copied from a guide, and a guide that shows them is showing one subscriber's identity. Registration ID, LOID and logical password are blank when the line authenticates on serial alone; adding values that the original unit does not send is a change, not a default.
+
+The software-version variables accept an extraction pattern rather than a literal in some builds. Where that applies, the pattern is stored base64-encoded in the environment and decodes to a single capturing group such as `^(\d{2}(?:\.\d{2}){3})$`, with group 1 used as the reported version. That pattern selects digits out of a string; it does not select a firmware bank.
+

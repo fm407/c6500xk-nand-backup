@@ -667,3 +667,5 @@ Only two things need editing:
 Do not set the serial to a literal, and do not upload the file with the placeholders still in it; it would present a wrong vendor ID and a wrong equipment ID.
 
 Two honest limits. The file was normalised by the module's own daemon from a real unit, so it reflects that daemon version's output rather than the shipped template byte for byte. And it was observed on one line against one OLT; the OLT-owned service provisioning is replayed at runtime and is not contained in this file at all.
+
+Slot 8 is already baked in. The class 5 and 6 rows sit at instance `0x0108`, and the class 277 related-port fields read `0x0801xxxx`. The boot helper only rewrites rows that still read `0x0101`, so changing `pon_slot` on top of this file will not renumber it. Keep `pon_slot` at 8, which reproduces the numbering the original unit reported, or renumber those rows by hand if your original unit used a different number. The numbering is chosen by the ONU rather than assigned by the OLT, so a difference is not fatal, but it does stop the profile from mirroring the original unit.

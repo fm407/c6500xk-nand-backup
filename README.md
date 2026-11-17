@@ -29,6 +29,8 @@
 - [Appendix A. Reusable full backup script](#appendix-a-reusable-full-backup-script)
 - [Appendix B. Evidence recorded in the successful session](#appendix-b-evidence-recorded-in-the-successful-session)
 - [Appendix C. Offline firmware findings](#appendix-c-offline-firmware-findings)
+- [Appendix D. Router-side VLAN mode follows the loaded profile](#appendix-d-router-side-vlan-mode-follows-the-loaded-profile)
+- [Appendix E. No upstream rate cap in the replacement's OMCI contract](#appendix-e-no-upstream-rate-cap-in-the-replacements-omci-contract)
 
 ## Quick reference
 
@@ -495,3 +497,85 @@ diff -qr analysis/primary analysis/secondary > analysis/diff.txt
 > **Interpretation / security**
 >
 > The running 2024 kernel build is consistent with the secondary image, but it does not independently prove which boot slot is active. Confirm the boot selection before making that claim. Extracted files may contain private credentials. Keep the image files and all extracted configuration data in private storage.
+
+## Appendix D. Router-side VLAN mode follows the loaded profile
+
+*Field verified 17 November 2026 on the installed replacement ONU, from the boot log and the live traffic-control filters. Read-only observation; nothing was changed to obtain it.*
+
+The replacement firmware's VLAN fixer does not read a fixed router-side tagging mode. It re-detects the configuration from the effective MIB on every boot and writes the result to `/tmp/8311-config.sh` as `INTERNET_VLAN`. Changing the MIB profile therefore changes the encapsulation presented on the router-facing link.
+
+| Loaded profile | `INTERNET_VLAN` | Router-facing link |
+| --- | --- | --- |
+| stock `prx300_1U.ini` | the Internet service VLAN | tagged |
+| reviewed identity profile | `0` | untagged |
+
+Installed filters, same firmware and hardware, on consecutive boots. Service VLAN values are shown as placeholders:
+
+```text
+# stock profile -> tagged
+ingress <pmapper>: flower action vlan modify id <internet-vlan> protocol 802.1Q
+egress  <pmapper>: flower vlan_id <internet-vlan> action vlan modify id <service-vlan>
+                   flower action drop                    pref 1
+                   flower protocol all action drop       pref 3
+
+# reviewed profile -> untagged
+ingress <pmapper>: flower action vlan pop
+egress  <pmapper>: flower action drop                    pref 1
+                   flower protocol all action vlan push id <service-vlan>
+```
+
+The two modes are mutually exclusive, and the router port must match whichever one is installed. A port configured untagged, pointed at a module that has fallen back to the stock profile, shows link up and receives frames it discards: registration reaches O5.1, OMCI provisioning completes, and no DHCP lease appears. That presents as an associated ONU with no Internet, and it is **not** a VLAN-table fault. The fixer is doing the right thing for the profile it was given.
+
+Three read-only checks distinguish the modes:
+
+```sh
+cat /tmp/8311-config.sh                    # INTERNET_VLAN=0 means untagged
+tc filter show dev <pmapper> ingress
+tc filter show dev <pmapper> egress
+```
+
+The boot log records every programmed rule verbatim, in order:
+
+```sh
+logread | grep -i -E 'vlan|pmapper'
+```
+
+Recovery is to point the MIB-file variable back at the reviewed profile, restore the stock template if it was overwritten, and restart the daemon. The fixer returns to the mode that profile implies.
+
+### D.1 The profile pointer can revert while the profile survives
+
+The persistent environment was found naming the stock template while the reviewed profile was still present and hash-intact. The identity was therefore half applied: serial number, vendor ID and equipment ID derive from environment variables and survived, while values that exist only inside the profile reverted. Both sets were read back from the ONU2-G instance.
+
+A profile that is present is not proof that it is loaded. Read the pointer and the profile-only attributes.
+
+### D.2 The daemon overwrites whichever path the pointer names
+
+The daemon stores the effective MIB back into the path named by the MIB-file variable. With the stock path selected, the packaged stock template is rewritten in place.
+
+| State | Bytes | SHA-256 |
+| --- | ---: | --- |
+| as shipped | 21,497 | `676871578948468b43a2b3e0dc05b6ecc70a9ba961e2c5e1974c407a33f2d687` |
+| after one boot with it selected | 21,476 | `dda1c3e25b0627824121fcf3e6e8f503d34c826f143644cdb186a02d36a8f682` |
+
+The stock fallback then no longer matches the shipped image. Restore it from the pinned firmware copy rather than assuming it is still pristine.
+
+## Appendix E. No upstream rate cap in the replacement's OMCI contract
+
+*Field verified 17 November 2026 by read-only traversal of the live MIB on the installed module. Only the daemon's read verbs were used: no Set, Create, Delete, store or reboot.*
+
+Several hundred managed entities were present. Traffic descriptors (class 280) appear in no shipped template; every one of them was created at runtime by the OLT. Most carried a peak information rate set just above the subscribed line rate, symmetric between upstream and downstream. The remaining few carried a very low rate and are referenced by the Dot1 rate limiter for upstream unknown-unicast, broadcast and multicast flood only.
+
+The chain was followed instance by instance. Every GEM port network CTP (class 268) terminates on the single provisioned T-CONT (class 262) that holds an allocated Alloc-ID; the remaining T-CONTs stay at the unassigned Alloc-ID. Each GEM port references a distinct upstream and a distinct downstream traffic descriptor, and both directions resolve to the same headroom figure. Each GEM port also carries its own downstream priority-queue pointer.
+
+The ONU advertises full traffic-management support in the ONU-G traffic-management option. That advertisement is what entitles the OLT to create those descriptors at all; with the option absent the ONU would hold no traffic descriptor and no rate object whatsoever.
+
+**Conclusion, with its limit stated: no rate object reachable through the replacement's OMCI contract constrains the upstream below the provisioned rate.** A shortfall in that direction is not explained by the text profile. The candidate explanations remain OLT scheduling, service provisioning, and measurement itself. The discriminator is the original unit on the same fibre, which needs an outage and has not been performed.
+
+The exact provisioned rates, descriptor count, GEM port identifiers and T-CONT assignments are omitted here on purpose: they describe one subscriber's service profile. The structural result above does not depend on them.
+
+The read-only traversal used two daemon verbs:
+
+```sh
+omci_pipe.sh md                  # enumerate the managed entities in the MIB
+omci_pipe.sh meg <class> <inst>  # dump one entity, attribute by attribute
+```

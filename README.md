@@ -661,7 +661,7 @@ Only two things need editing:
 
 | Placeholder | Occurrences | Replace with |
 | --- | ---: | --- |
-| `XXXX` | 4 | the first four characters of your FSAN |
+| `XXXX` | 3 | the first four characters of your FSAN |
 | `XXXXXXXXXX` | 7 | your ten-character CLEI, leaving the trailing `\0` padding intact |
 
 Do not set the serial to a literal, and do not upload the file with the placeholders still in it; it would present a wrong vendor ID and a wrong equipment ID.
@@ -669,3 +669,29 @@ Do not set the serial to a literal, and do not upload the file with the placehol
 Two honest limits. The file was normalised by the module's own daemon from a real unit, so it reflects that daemon version's output rather than the shipped template byte for byte. And it was observed on one line against one OLT; the OLT-owned service provisioning is replayed at runtime and is not contained in this file at all.
 
 Slot 8 is already baked in. The class 5 and 6 rows sit at instance `0x0108`, and the class 277 related-port fields read `0x0801xxxx`. The boot helper only rewrites rows that still read `0x0101`, so changing `pon_slot` on top of this file will not renumber it. Keep `pon_slot` at 8, which reproduces the numbering the original unit reported, or renumber those rows by hand if your original unit used a different number. The numbering is chosen by the ONU rather than assigned by the OLT, so a difference is not fatal, but it does stop the profile from mirroring the original unit.
+
+### F.6 Profile builder
+
+The sample above needs two values filled in and, if your unit reported a different slot, twelve row numbers renumbered. [docs/profile-builder](https://fm407.github.io/c6500xk-nand-backup/profile-builder/) does both in the browser:
+
+https://fm407.github.io/c6500xk-nand-backup/profile-builder/
+
+Enter the vendor ID (the first four characters of your FSAN) and the equipment ID or CLEI that your original unit reports, adjust the slot if it is not 8, and the page produces the finished profile plus the four `fw_setenv` lines that keep the environment in step with it.
+
+What it changes, and nothing else:
+
+| Row group | Count | Rewritten to |
+| --- | ---: | --- |
+| ONU-G and two circuit-pack vendor fields | 3 | your vendor ID |
+| ONU2-G, cardholder and circuit-pack equipment fields | 7 | your equipment ID, NUL padded to 20 bytes |
+| Class 5 and 6 cardholder instances | 2 | `0x01` and your slot in hex |
+| Class 11 and 264 instances | 2 | your slot in hex and `01` |
+| Class 277 related-port attributes | 8 | your slot in hex, then `01`, then the queue index |
+
+Every other row is the model constant from the sample. The ONU-G serial stays `00000000` because the daemon fills it from PLOAM.
+
+The page runs entirely in the tab. It has no analytics, no cookie, no storage call and no network request after it loads, and the content policy in its header blocks connections outright. Nothing you type leaves the browser. Only the two generated files are written, and only when you click download.
+
+Limits, same as the sample. The output is one model on one line. The page cannot tell you which values your unit reports: read them from your own unit first. It does not generate VLANs, credentials, registration IDs, service rates or GEM identifiers, because those are OLT-owned and replayed at runtime.
+
+The generator lives in the repository. `tools/profile-builder.template.html` holds the page, `tools/build-profile-builder.mjs` splices in the sample body, and `tools/test-profile-builder.mjs` checks the result against the published sample, including a byte comparison at slot 8.

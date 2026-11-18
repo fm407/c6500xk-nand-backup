@@ -1,0 +1,928 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>C6500XK profile builder</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f7f5;
+    --fg: #1c1c1a;
+    --muted: #5c5c57;
+    --line: #d8d8d2;
+    --card: #ffffff;
+    --accent: #0b5fa5;
+    --bad: #a3241c;
+    --warn: #8a5a00;
+    --ok: #1d6b36;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --fg: #e8e8e4;
+      --muted: #9a9a94;
+      --line: #34383f;
+      --card: #1b1e23;
+      --accent: #6cb4f0;
+      --bad: #ff8b80;
+      --warn: #e0b25c;
+      --ok: #7fd39b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.55 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+  main { max-width: 62rem; margin: 0 auto; padding: 2rem 1.25rem 5rem; }
+  h1 { font-size: 1.7rem; line-height: 1.2; margin: 0 0 .4rem; letter-spacing: -.01em; }
+  h2 { font-size: 1.05rem; margin: 0 0 .8rem; letter-spacing: .01em; }
+  p { margin: 0 0 .9rem; }
+  .lead { color: var(--muted); max-width: 44rem; }
+  a { color: var(--accent); }
+  code, pre, .mono { font-family: var(--mono); font-size: .86rem; }
+  .badge {
+    display: inline-flex; align-items: center; gap: .45rem;
+    background: color-mix(in srgb, var(--ok) 14%, transparent);
+    color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent);
+    border-radius: 999px; padding: .25rem .7rem; font-size: .8rem; font-weight: 600;
+  }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+  @media (min-width: 56rem) { .split { grid-template-columns: minmax(0, 22rem) minmax(0, 1fr); } }
+  .card { min-width: 0; background: var(--card); border: 1px solid var(--line); border-radius: .7rem; padding: 1.1rem 1.1rem 1.2rem; }
+  .field { margin-bottom: .95rem; }
+  .field:last-child { margin-bottom: 0; }
+  label { display: block; font-weight: 600; font-size: .9rem; margin-bottom: .3rem; }
+  .hint { display: block; font-weight: 400; color: var(--muted); font-size: .8rem; margin-top: .25rem; }
+  input {
+    width: 100%; padding: .5rem .6rem; font: inherit; font-size: .95rem;
+    color: var(--fg); background: var(--bg);
+    border: 1px solid var(--line); border-radius: .4rem;
+  }
+  input:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input[aria-invalid="true"] { border-color: var(--bad); }
+  .row { display: flex; gap: .6rem; flex-wrap: wrap; }
+  .row > .field { flex: 1 1 8rem; margin-bottom: 0; }
+  button {
+    font: inherit; font-size: .92rem; font-weight: 600; cursor: pointer;
+    padding: .55rem 1rem; border-radius: .45rem;
+    border: 1px solid var(--line); background: var(--card); color: var(--fg);
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  @media (prefers-color-scheme: dark) { button.primary { color: #10151b; } }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .actions { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: 1rem; }
+  details { margin-top: .9rem; border-top: 1px solid var(--line); padding-top: .8rem; }
+  summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
+  details .field { margin-top: .8rem; }
+  .stat { display: flex; gap: 1.6rem; flex-wrap: wrap; margin: .2rem 0 1rem; font-size: .82rem; color: var(--muted); }
+  .stat b { color: var(--fg); font-weight: 600; }
+  pre {
+    margin: 0; padding: .8rem .9rem; overflow: auto;
+    background: var(--bg); border: 1px solid var(--line); border-radius: .45rem;
+    white-space: pre; max-height: 26rem;
+  }
+  .out { margin-top: 1.1rem; }
+  #profile-preview { white-space: pre-wrap; }
+  .out h3 { font-size: .82rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 1.1rem 0 .45rem; }
+  .msgs { margin: .9rem 0 0; padding: 0; list-style: none; font-size: .86rem; }
+  .msgs li { margin-bottom: .4rem; padding-left: 1.3rem; position: relative; }
+  .msgs li::before { position: absolute; left: 0; }
+  .msgs .err { color: var(--bad); }
+  .msgs .err::before { content: "!"; font-weight: 700; }
+  .msgs .warn { color: var(--warn); }
+  .msgs .warn::before { content: "*"; font-weight: 700; }
+  .msgs .ok { color: var(--ok); }
+  .msgs .ok::before { content: "\2713"; }
+  .msgs .note { color: var(--muted); }
+  .msgs .note::before { content: "\2022"; }
+  .foot { margin-top: 2rem; font-size: .86rem; color: var(--muted); }
+  .foot h2 { color: var(--fg); }
+  .foot ul { padding-left: 1.1rem; }
+  .foot li { margin-bottom: .5rem; }
+  .kbd { font-family: var(--mono); font-size: .84rem; background: var(--bg); border: 1px solid var(--line); border-radius: .3rem; padding: .05rem .35rem; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>C6500XK profile builder</h1>
+    <p class="lead">
+      Enter the vendor ID and equipment ID that your own unit reports, pick the PON slot,
+      and this page writes the profile and the matching environment commands.
+      It fills in model constants that are already known; it does not invent per-unit values.
+    </p>
+    <p><span class="badge">Runs entirely in this tab, no network requests</span></p>
+  </header>
+
+  <div class="grid split">
+    <section class="card" aria-labelledby="in-h">
+      <h2 id="in-h">Your unit</h2>
+
+      <div class="field">
+        <label for="fsan">FSAN or serial, optional</label>
+        <input id="fsan" name="fsan" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false"
+               placeholder="the value your original unit reports" aria-describedby="fsan-h">
+        <span class="hint" id="fsan-h">
+          Only the first four characters are used, as the vendor ID. Nothing else is copied anywhere,
+          and this field is never written to the output.
+        </span>
+      </div>
+
+      <div class="field">
+        <label for="vendor">Vendor ID, 4 characters</label>
+        <input id="vendor" name="vendor" type="text" maxlength="4" autocomplete="off" autocapitalize="characters"
+               spellcheck="false" placeholder="ABCD" aria-describedby="vendor-h">
+        <span class="hint" id="vendor-h">
+          Calix units use the first four characters of the FSAN. <a href="#" id="rederive">Take it from the field above</a>.
+        </span>
+      </div>
+
+      <div class="field">
+        <label for="equipment">Equipment ID or CLEI, 10 characters</label>
+        <input id="equipment" name="equipment" type="text" maxlength="20" autocomplete="off"
+               spellcheck="false" placeholder="EXAMPLE001" aria-describedby="equipment-h">
+        <span class="hint" id="equipment-h">
+          Ten characters is the observed length. Shorter or longer values are accepted and padded
+          with NUL bytes to the 20-byte attribute, but they will not mirror a ten-character unit.
+        </span>
+      </div>
+
+      <div class="field">
+        <label for="slot">PON slot, 2 to 254</label>
+        <input id="slot" name="slot" type="number" min="2" max="254" step="1" value="8" aria-describedby="slot-h">
+        <span class="hint" id="slot-h">
+          8 is the only value observed on a C6500XK. Keep it unless your original unit reported
+          a different number. It is local numbering that the ONU chooses, not a value the OLT assigns.
+        </span>
+      </div>
+
+      <details>
+        <summary>Advanced</summary>
+        <div class="field">
+          <label for="model">Model string</label>
+          <input id="model" name="model" type="text" maxlength="20" autocomplete="off" spellcheck="false" value="C6500XK">
+          <span class="hint">Written to ONU-G and the circuit-pack rows. Only <code>C6500XK</code> is validated.</span>
+        </div>
+        <div class="field">
+          <label for="code">Vendor product code</label>
+          <input id="code" name="code" type="text" maxlength="6" autocomplete="off" spellcheck="false" value="0x4400">
+          <span class="hint">Hex, written to ONU2-G. Only <code>0x4400</code> is validated.</span>
+        </div>
+        <div class="field">
+          <label for="path">Profile path on the module, optional</label>
+          <input id="path" name="path" type="text" autocomplete="off" spellcheck="false"
+                 placeholder="/ptconf/8311/profile.ini" aria-describedby="path-h">
+          <span class="hint" id="path-h">
+            Used for the <code>fw_setenv</code> line in the helper script. Leave it empty to fill in later.
+            Do not point this at the packaged template.
+          </span>
+        </div>
+      </details>
+
+      <div class="actions">
+        <button type="button" id="clear">Clear</button>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="out-h">
+      <h2 id="out-h">Output</h2>
+      <div id="summary" class="stat" aria-live="polite"></div>
+      <ul id="msgs" class="msgs" aria-live="polite"></ul>
+      <div id="result" hidden>
+        <div class="out">
+          <h3>Profile</h3>
+          <pre id="profile-preview" tabindex="0"></pre>
+          <div class="actions">
+            <button type="button" class="primary" id="download-profile">Download profile</button>
+            <button type="button" id="copy-profile">Copy profile</button>
+          </div>
+        </div>
+        <div class="out">
+          <h3>Environment commands</h3>
+          <pre id="env-preview" tabindex="0"></pre>
+          <div class="actions">
+            <button type="button" id="download-script">Download helper script</button>
+            <button type="button" id="copy-env">Copy commands</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="foot">
+    <h2>What this page does and does not do</h2>
+    <ul>
+      <li>It rewrites exactly three kinds of value in a profile whose other rows are model constants: the vendor ID, the equipment ID, and the instance numbers that encode the PON slot.</li>
+      <li>It leaves the ONU-G serial at <code>00000000</code> on purpose. The daemon derives the serial from the PLOAM serial, and a literal here conflicts with your own registration.</li>
+      <li>It writes the same values as <code>8311_vendor_id</code> and <code>8311_equipment_id</code> commands, because the boot script copies those out of the environment and overwrites the profile rows.</li>
+      <li>It does not generate VLANs, login credentials, registration IDs, service rates or GEM identifiers. Those are owned by the OLT and are replayed at runtime.</li>
+      <li>Nothing you type is stored, transmitted or logged. There is no analytics, no cookie, no storage call and no request after the page loads. The policy in the page header blocks connections outright.</li>
+      <li>The result is a mirror of one model, validated on one line against one OLT. It is not a guarantee of provisioning, and it is not a substitute for reading your own unit first.</li>
+    </ul>
+    <p>
+      Source and method: <a href="https://github.com/fm407/c6500xk-nand-backup#f6-profile-builder">README appendix F</a>.
+      Base profile: <a href="https://github.com/fm407/c6500xk-nand-backup/blob/main/profiles/c6500xk-sample.ini">profiles/c6500xk-sample.ini</a>.
+    </p>
+  </section>
+</main>
+
+<noscript>
+  <p style="max-width:62rem;margin:0 auto;padding:1rem 1.25rem;color:#a3241c">
+    This page needs JavaScript. Nothing is sent anywhere; the script runs locally in the browser.
+  </p>
+</noscript>
+
+<script type="text/plain" id="base-profile">#LOID Authentication
+? 65530 0
+
+# ONT-G (ONU-G)
+256 0 "XXXX" "C6500XK" 00000000 2 0 0 0 0 #0
+
+# ONT2-G (ONU2-G)
+## Calix uses OMCC version 0xB1 (baseline and extended messages)
+257 0x0000 "XXXXXXXXXX" 0xa0 0x4400 1 1 128 16 1 128 0 0x007f 0 0 1000
+
+# ONT data
+2 0 0
+
+# ONU dynamic power management control
+336 0 0x7 0x0 0 0 0 0 0 0x0000000000000000
+
+## Software image
+7 0
+7 1
+
+# ONT remote debug
+158 0 0 "                         "
+
+# OLT-G
+131 0 "    " "                    " "              " \0\0\0\0\0\0\0\0\0\0\0\0\0\0
+
+# ANI Cardholder
+5 0x0180 238 238 1 "XXXXXXXXXX\0\0\0\0\0\0\0\0\0\0" "XXXXXXXXXX\0\0\0\0\0\0\0\0\0\0" 0 0 0 0
+
+# ANI Circuit Pack
+# T-CONT, Prio queue and scheduler numbers aligned with Calix ONU properties
+6 0x0180 238 1 "        " "C6500XK" "XXXX" 0 1 0 "XXXXXXXXXX\0\0\0\0\0\0\0\0\0\0" 0 8 48 0 0
+
+# Power Shedding
+133 0 0 7200 0 600 0 0 0 0 0 0
+
+# Port mapping package-G
+297 0 0 \0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0 \0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0 \0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0 \0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0 \0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0 \0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0 \0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0 \0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0
+
+# Equipment extension package
+160 0
+
+## Priority Queue (DS) 8 times per PPTP Ethernet UNI
+# Calix uses ME ID 0x0101 to 0x0108
+277 0x0000 1 0 0 60000 0xffff 0x08010000 0x0000 1 0x01 0x00000000 0xffff 0xffff \x2d\x00\x32\x00\x16\x80\x19\x00 \xff\xff 15 3
+277 0x0001 1 0 0 60000 0xffff 0x08010001 0x0000 1 0x01 0x00000000 0xffff 0xffff \x2d\x00\x32\x00\x16\x80\x19\x00 \xff\xff 15 3
+277 0x0002 1 0 0 60000 0xffff 0x08010002 0x0000 1 0x01 0x00000000 0xffff 0xffff \x2d\x00\x32\x00\x16\x80\x19\x00 \xff\xff 15 3
+277 0x0003 1 0 0 60000 0xffff 0x08010003 0x0000 1 0x01 0x00000000 0xffff 0xffff \x2d\x00\x32\x00\x16\x80\x19\x00 \xff\xff 15 3
+277 0x0004 1 0 0 60000 0xffff 0x08010004 0x0000 1 0x01 0x00000000 0xffff 0xffff \x2d\x00\x32\x00\x16\x80\x19\x00 \xff\xff 15 3
+277 0x0005 1 0 0 60000 0xffff 0x08010005 0x0000 1 0x01 0x00000000 0xffff 0xffff \x2d\x00\x32\x00\x16\x80\x19\x00 \xff\xff 15 3
+277 0x0006 1 0 0 60000 0xffff 0x08010006 0x0000 1 0x01 0x00000000 0xffff 0xffff \x2d\x00\x32\x00\x16\x80\x19\x00 \xff\xff 15 3
+277 0x0007 1 0 0 60000 0xffff 0x08010007 0x0000 1 0x01 0x00000000 0xffff 0xffff \x2d\x00\x32\x00\x16\x80\x19\x00 \xff\xff 15 3
+
+## T-CONT (US) - reduced to 16
+262 0x8000 0xffff 1 1
+262 0x8001 0xffff 1 1
+262 0x8002 0xffff 1 1
+262 0x8003 0xffff 1 1
+262 0x8004 0xffff 1 1
+262 0x8005 0xffff 1 1
+262 0x8006 0xffff 1 1
+262 0x8007 0xffff 1 1
+262 0x8008 0xffff 1 1
+262 0x8009 0xffff 1 1
+262 0x800a 0xffff 1 1
+262 0x800b 0xffff 1 1
+262 0x800c 0xffff 1 1
+262 0x800d 0xffff 1 1
+262 0x800e 0xffff 1 1
+262 0x800f 0xffff 1 1
+
+# ANI-G
+# This Managed Entity shall be created after all T-CONTs have been created to ensure that the number of reported T-CONTs is correct.
+# The value written in the ANI-G parameter list is ignored.
+# check if the ONU response time is taken from PON FAPI or from mib.ini (set 0x88B8 = 35 us default here)
+263 0x8001 1 8 48 0 0 5 9 0 0 0 0xff 0xff 0x88B8 0 0x81 0x81
+
+## Traffic Scheduler (US) (one for each TCONT)
+# Calix reports more schedulers (0x8000 to 0x803F)
+278 0xff00 0x8000 0x0000 0x00 0x00
+278 0xff01 0x8001 0x0000 0x00 0x00
+278 0xff02 0x8002 0x0000 0x00 0x00
+278 0xff03 0x8003 0x0000 0x00 0x00
+278 0xff04 0x8004 0x0000 0x00 0x00
+278 0xff05 0x8005 0x0000 0x00 0x00
+278 0xff06 0x8006 0x0000 0x00 0x00
+278 0xff07 0x8007 0x0000 0x00 0x00
+278 0xff08 0x8008 0x0000 0x00 0x00
+278 0xff09 0x8009 0x0000 0x00 0x00
+278 0xff0a 0x800a 0x0000 0x00 0x00
+278 0xff0b 0x800b 0x0000 0x00 0x00
+278 0xff0c 0x800c 0x0000 0x00 0x00
+278 0xff0d 0x800d 0x0000 0x00 0x00
+278 0xff0e 0x800e 0x0000 0x00 0x00
+278 0xff0f 0x800f 0x0000 0x00 0x00
+
+## ANI Priority Queue (US), 8 queues per T-CONT (US) - 64 queues added to get 16 x 8 queues
+277 0x8000 1 0 0 60000 0xffff 0x80000007 0x0000 1 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8001 1 0 0 60000 0xffff 0x80000006 0x0000 1 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8002 1 0 0 60000 0xffff 0x80000005 0x0000 1 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8003 1 0 0 60000 0xffff 0x80000004 0x0000 1 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8004 1 0 0 60000 0xffff 0x80000003 0x0000 1 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8005 1 0 0 60000 0xffff 0x80000002 0x0000 1 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8006 1 0 0 60000 0xffff 0x80000001 0x0000 1 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8007 1 0 0 60000 0xffff 0x80000000 0x0000 1 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+
+277 0x8008 1 0 0 60000 0xffff 0x80010000 0xff01 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8009 1 0 0 60000 0xffff 0x80010001 0xff01 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x800a 1 0 0 60000 0xffff 0x80010002 0xff01 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x800b 1 0 0 60000 0xffff 0x80010003 0xff01 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x800c 1 0 0 60000 0xffff 0x80010004 0xff01 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x800d 1 0 0 60000 0xffff 0x80010005 0xff01 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x800e 1 0 0 60000 0xffff 0x80010006 0xff01 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x800f 1 0 0 60000 0xffff 0x80010007 0xff01 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+
+277 0x8010 1 0 0 60000 0xffff 0x80020000 0xff02 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8011 1 0 0 60000 0xffff 0x80020001 0xff02 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8012 1 0 0 60000 0xffff 0x80020002 0xff02 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8013 1 0 0 60000 0xffff 0x80020003 0xff02 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8014 1 0 0 60000 0xffff 0x80020004 0xff02 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8015 1 0 0 60000 0xffff 0x80020005 0xff02 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8016 1 0 0 60000 0xffff 0x80020006 0xff02 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8017 1 0 0 60000 0xffff 0x80020007 0xff02 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+
+277 0x8018 1 0 0 60000 0xffff 0x80030000 0xff03 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8019 1 0 0 60000 0xffff 0x80030001 0xff03 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x801a 1 0 0 60000 0xffff 0x80030002 0xff03 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x801b 1 0 0 60000 0xffff 0x80030003 0xff03 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x801c 1 0 0 60000 0xffff 0x80030004 0xff03 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x801d 1 0 0 60000 0xffff 0x80030005 0xff03 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x801e 1 0 0 60000 0xffff 0x80030006 0xff03 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x801f 1 0 0 60000 0xffff 0x80030007 0xff03 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+
+277 0x8020 1 0 0 60000 0xffff 0x80040000 0xff04 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8021 1 0 0 60000 0xffff 0x80040001 0xff04 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8022 1 0 0 60000 0xffff 0x80040002 0xff04 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8023 1 0 0 60000 0xffff 0x80040003 0xff04 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8024 1 0 0 60000 0xffff 0x80040004 0xff04 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8025 1 0 0 60000 0xffff 0x80040005 0xff04 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8026 1 0 0 60000 0xffff 0x80040006 0xff04 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8027 1 0 0 60000 0xffff 0x80040007 0xff04 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+
+277 0x8028 1 0 0 60000 0xffff 0x80050000 0xff05 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8029 1 0 0 60000 0xffff 0x80050001 0xff05 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x802a 1 0 0 60000 0xffff 0x80050002 0xff05 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x802b 1 0 0 60000 0xffff 0x80050003 0xff05 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x802c 1 0 0 60000 0xffff 0x80050004 0xff05 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x802d 1 0 0 60000 0xffff 0x80050005 0xff05 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x802e 1 0 0 60000 0xffff 0x80050006 0xff05 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x802f 1 0 0 60000 0xffff 0x80050007 0xff05 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+
+277 0x8030 1 0 0 60000 0xffff 0x80060000 0xff06 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8031 1 0 0 60000 0xffff 0x80060001 0xff06 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8032 1 0 0 60000 0xffff 0x80060002 0xff06 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8033 1 0 0 60000 0xffff 0x80060003 0xff06 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8034 1 0 0 60000 0xffff 0x80060004 0xff06 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8035 1 0 0 60000 0xffff 0x80060005 0xff06 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8036 1 0 0 60000 0xffff 0x80060006 0xff06 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8037 1 0 0 60000 0xffff 0x80060007 0xff06 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+
+277 0x8038 1 0 0 60000 0xffff 0x80070000 0xff07 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8039 1 0 0 60000 0xffff 0x80070001 0xff07 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x803a 1 0 0 60000 0xffff 0x80070002 0xff07 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x803b 1 0 0 60000 0xffff 0x80070003 0xff07 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x803c 1 0 0 60000 0xffff 0x80070004 0xff07 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x803d 1 0 0 60000 0xffff 0x80070005 0xff07 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x803e 1 0 0 60000 0xffff 0x80070006 0xff07 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x803f 1 0 0 60000 0xffff 0x80070007 0xff07 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+
+277 0x8040 1 0 0 60000 0xffff 0x80080000 0xff08 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8041 1 0 0 60000 0xffff 0x80080001 0xff08 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8042 1 0 0 60000 0xffff 0x80080002 0xff08 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8043 1 0 0 60000 0xffff 0x80080003 0xff08 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8044 1 0 0 60000 0xffff 0x80080004 0xff08 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8045 1 0 0 60000 0xffff 0x80080005 0xff08 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8046 1 0 0 60000 0xffff 0x80080006 0xff08 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8047 1 0 0 60000 0xffff 0x80080007 0xff08 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+
+277 0x8048 1 0 0 60000 0xffff 0x80090000 0xff09 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8049 1 0 0 60000 0xffff 0x80090001 0xff09 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x804a 1 0 0 60000 0xffff 0x80090002 0xff09 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x804b 1 0 0 60000 0xffff 0x80090003 0xff09 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x804c 1 0 0 60000 0xffff 0x80090004 0xff09 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x804d 1 0 0 60000 0xffff 0x80090005 0xff09 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x804e 1 0 0 60000 0xffff 0x80090006 0xff09 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x804f 1 0 0 60000 0xffff 0x80090007 0xff09 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+
+277 0x8050 1 0 0 60000 0xffff 0x800a0000 0xff0a 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8051 1 0 0 60000 0xffff 0x800a0001 0xff0a 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8052 1 0 0 60000 0xffff 0x800a0002 0xff0a 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8053 1 0 0 60000 0xffff 0x800a0003 0xff0a 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8054 1 0 0 60000 0xffff 0x800a0004 0xff0a 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8055 1 0 0 60000 0xffff 0x800a0005 0xff0a 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8056 1 0 0 60000 0xffff 0x800a0006 0xff0a 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8057 1 0 0 60000 0xffff 0x800a0007 0xff0a 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+
+277 0x8058 1 0 0 60000 0xffff 0x800b0000 0xff0b 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8059 1 0 0 60000 0xffff 0x800b0001 0xff0b 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x805a 1 0 0 60000 0xffff 0x800b0002 0xff0b 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x805b 1 0 0 60000 0xffff 0x800b0003 0xff0b 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x805c 1 0 0 60000 0xffff 0x800b0004 0xff0b 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x805d 1 0 0 60000 0xffff 0x800b0005 0xff0b 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x805e 1 0 0 60000 0xffff 0x800b0006 0xff0b 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x805f 1 0 0 60000 0xffff 0x800b0007 0xff0b 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+
+277 0x8060 1 0 0 60000 0xffff 0x800c0000 0xff0c 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8061 1 0 0 60000 0xffff 0x800c0001 0xff0c 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8062 1 0 0 60000 0xffff 0x800c0002 0xff0c 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8063 1 0 0 60000 0xffff 0x800c0003 0xff0c 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8064 1 0 0 60000 0xffff 0x800c0004 0xff0c 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8065 1 0 0 60000 0xffff 0x800c0005 0xff0c 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8066 1 0 0 60000 0xffff 0x800c0006 0xff0c 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8067 1 0 0 60000 0xffff 0x800c0007 0xff0c 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+
+277 0x8068 1 0 0 60000 0xffff 0x800d0000 0xff0d 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8069 1 0 0 60000 0xffff 0x800d0001 0xff0d 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x806a 1 0 0 60000 0xffff 0x800d0002 0xff0d 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x806b 1 0 0 60000 0xffff 0x800d0003 0xff0d 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x806c 1 0 0 60000 0xffff 0x800d0004 0xff0d 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x806d 1 0 0 60000 0xffff 0x800d0005 0xff0d 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x806e 1 0 0 60000 0xffff 0x800d0006 0xff0d 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x806f 1 0 0 60000 0xffff 0x800d0007 0xff0d 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+
+277 0x8070 1 0 0 60000 0xffff 0x800e0000 0xff0e 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8071 1 0 0 60000 0xffff 0x800e0001 0xff0e 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8072 1 0 0 60000 0xffff 0x800e0002 0xff0e 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8073 1 0 0 60000 0xffff 0x800e0003 0xff0e 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8074 1 0 0 60000 0xffff 0x800e0004 0xff0e 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8075 1 0 0 60000 0xffff 0x800e0005 0xff0e 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8076 1 0 0 60000 0xffff 0x800e0006 0xff0e 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8077 1 0 0 60000 0xffff 0x800e0007 0xff0e 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+
+277 0x8078 1 0 0 60000 0xffff 0x800f0000 0xff0f 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x8079 1 0 0 60000 0xffff 0x800f0001 0xff0f 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x807a 1 0 0 60000 0xffff 0x800f0002 0xff0f 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x807b 1 0 0 60000 0xffff 0x800f0003 0xff0f 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x807c 1 0 0 60000 0xffff 0x800f0004 0xff0f 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x807d 1 0 0 60000 0xffff 0x800f0005 0xff0f 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x807e 1 0 0 60000 0xffff 0x800f0006 0xff0f 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+277 0x807f 1 0 0 60000 0xffff 0x800f0007 0xff0f 0x00 0x01 0x00000000 0xffff 0xffff \x1f\xa4\x24\x00\x00\xe6\x01\x00 \xff\xff 15 1
+
+## PPTP Ethernet UNI
+11 0x0801 0 0 0 0x00 0 1 0 1534 0 0xffff 0 0 0 0 0
+
+## UNI Cardholder
+5 0x0108 49 49 1 "XXXXXXXXXX\0\0\0\0\0\0\0\0\0\0" "XXXXXXXXXX\0\0\0\0\0\0\0\0\0\0" 0 0 0 0
+
+## UNI Circuit Pack
+6 0x0108 49 1 "        " "C6500XK" "XXXX" 0 1 0 "XXXXXXXXXX\0\0\0\0\0\0\0\0\0\0" 0 0 0 0 0
+
+## UNI-G (PPTP Ethernet UNI)
+264 0x0801 0 0 0 0
+
+## IP Host
+134 0
+
+# Open OMCI
+! 65400 0 0x00020000 0x0006 0x00000000
+
+## TWDM System Profile
+! 442 0
+
+## TWDM Channels
+! 443 0x8000 0 0 0xFF 0xFF
+! 443 0x8001 0 0 0xFF 0xFF
+! 443 0x8002 0 0 0xFF 0xFF
+! 443 0x8003 0 0 0xFF 0xFF
+
+## Watchdog config Data
+! 65403 0x8001 0xFFFFFFFF 0xFFFFFFFF 0xFFFFFFFF 0xFFFFFFFF 0xFFFFFFFF 0
+</script>
+
+<script>
+"use strict";
+
+// ---- core begin (pure functions, no DOM access) ----
+
+var VENDOR_TOKEN_ROWS = 3;
+var EQUIP_TOKEN_ROWS = 7;
+
+function hex2(n) {
+  return ("0" + n.toString(16)).slice(-2);
+}
+
+function padEquipment(value) {
+  return value + "\\0".repeat(20 - value.length);
+}
+
+function buildBody(base, input) {
+  var text = base;
+
+  var vendorHits = (text.match(/"XXXX"/g) || []).length;
+  if (vendorHits !== VENDOR_TOKEN_ROWS) {
+    throw new Error("base profile holds " + vendorHits + " vendor rows, expected " + VENDOR_TOKEN_ROWS);
+  }
+  text = text.replace(/"XXXX"/g, '"' + input.vendor + '"');
+
+  var equipPlain = /^257 0x0000 "XXXXXXXXXX"/m;
+  if (!equipPlain.test(text)) {
+    throw new Error("base profile is missing the ONU2-G equipment row");
+  }
+  text = text.replace(equipPlain, '257 0x0000 "' + input.equipment + '"');
+
+  var padded = padEquipment(input.equipment);
+  var equipHits = 0;
+  text = text.replace(/"XXXXXXXXXX(?:\\0)*"/g, function () {
+    equipHits += 1;
+    return '"' + padded + '"';
+  });
+  if (equipHits !== EQUIP_TOKEN_ROWS - 1) {
+    throw new Error("base profile holds " + equipHits + " padded equipment rows, expected " + (EQUIP_TOKEN_ROWS - 1));
+  }
+
+  var slotHex = hex2(input.slot);
+  text = text.replace(/^([56]) 0x0108\b/gm, function (m, cls) {
+    return cls + " 0x01" + slotHex;
+  });
+  text = text.replace(/^(11|264) 0x0801\b/gm, function (m, cls) {
+    return cls + " 0x" + slotHex + "01";
+  });
+  text = text.replace(/^(277\s+(?:\S+\s+){6})0x0801/gm, function (m, prefix) {
+    return prefix + "0x" + slotHex + "01";
+  });
+
+  if (/"XXXX"|XXXXXXXXXX/.test(text)) {
+    throw new Error("a placeholder survived the rewrite");
+  }
+  return text;
+}
+
+function buildHeader(input) {
+  var slotHex = hex2(input.slot);
+  function row(label, value) {
+    return "# " + label.padEnd(15, " ") + ": " + value;
+  }
+  return [
+    "# Profile for a " + input.model + " identity on an 8311 XGS-PON module.",
+    "#",
+    "# Generated in the browser by the profile builder:",
+    "# https://fm407.github.io/c6500xk-nand-backup/profile-builder/",
+    "#",
+    row("Vendor ID", input.vendor + "   (3 rows)"),
+    row("Equipment ID", input.equipment + "   (7 rows)"),
+    row("PON slot", input.slot + " (0x" + slotHex + ")   (12 rows)"),
+    row("Product code", input.code),
+    row("Model string", input.model),
+    "#",
+    "# Read before use:",
+    "#   - The serial on ONU-G stays 00000000 on purpose. The daemon derives it from",
+    "#     the PLOAM serial, and a literal here conflicts with your registration.",
+    "#   - Set 8311_vendor_id, 8311_equipment_id and 8311_pon_slot in the U-Boot",
+    "#     environment as well. The boot script copies them over the profile rows.",
+    "#   - Keep the file on a persistent path and point the MIB variable at it.",
+    "#     Do not overwrite the packaged template: the daemon writes the effective",
+    "#     MIB back into whichever path that variable names.",
+    "#   - This mirrors one model on one line. Service provisioning is OLT-owned and",
+    "#     is replayed at runtime; it is not contained in this file.",
+    "#",
+    "# layout: <class id> <instance id> <attribute 1> ... <attribute 16>",
+    "# conventions: \\s is a space, \\0 is a NUL, \"a b c\" is one attribute",
+    ""
+  ].join("\n");
+}
+
+function buildProfile(base, input) {
+  return buildHeader(input) + "\n" + buildBody(base, input).replace(/\s+$/, "") + "\n";
+}
+
+function buildApplyScript(input, path) {
+  var lines = [
+    "#!/bin/sh",
+    "# Generated by the C6500XK profile builder.",
+    "# Run on the module as root, after the profile file is in place.",
+    "set -e",
+    "",
+    "fw_setenv 8311_vendor_id '" + input.vendor + "'",
+    "fw_setenv 8311_equipment_id '" + input.equipment + "'",
+    "fw_setenv 8311_pon_slot " + input.slot
+  ];
+  if (path) {
+    lines.push("fw_setenv 8311_mib_file '" + path + "'");
+  } else {
+    lines.push("");
+    lines.push("# The profile path was left empty in the builder. Set it by hand:");
+    lines.push("# fw_setenv 8311_mib_file <path-on-the-module>");
+  }
+  lines.push("");
+  lines.push("fw_printenv 8311_vendor_id 8311_equipment_id 8311_pon_slot 8311_mib_file");
+  return lines.join("\n") + "\n";
+}
+
+function validate(raw) {
+  var errors = [];
+  var warnings = [];
+
+  if (!/^[A-Za-z0-9]{4}$/.test(raw.vendor)) {
+    errors.push("Vendor ID must be exactly 4 letters or digits.");
+  }
+  if (!/^[A-Za-z0-9._-]{1,20}$/.test(raw.equipment)) {
+    errors.push("Equipment ID must be 1 to 20 characters: letters, digits, dot, underscore or hyphen.");
+  } else if (raw.equipment.length !== 10) {
+    warnings.push("Equipment ID is " + raw.equipment.length + " characters. The observed unit reported 10, and the attribute is padded to 20 bytes.");
+  }
+  if (raw.slot < 2 || raw.slot > 254 || String(raw.slot) !== String(Math.floor(raw.slot))) {
+    errors.push("PON slot must be a whole number from 2 to 254.");
+  } else if (raw.slot !== 8) {
+    warnings.push("PON slot " + raw.slot + " is not the observed value. Make sure your original unit reported it before relying on it.");
+  }
+  if (!/^[A-Za-z0-9 ._-]{1,20}$/.test(raw.model)) {
+    errors.push("Model string must be 1 to 20 characters: letters, digits, space, dot, underscore or hyphen.");
+  } else if (raw.model !== "C6500XK") {
+    warnings.push("Model string is not C6500XK. The row counts and queue layout in this profile were not validated for another model.");
+  }
+  if (!/^0x[0-9a-fA-F]{1,4}$/.test(raw.code)) {
+    errors.push("Product code must be hex with a 0x prefix, up to 4 digits.");
+  } else if (raw.code.toLowerCase() !== "0x4400") {
+    warnings.push("Product code is not 0x4400, the value the observed unit reported.");
+  }
+  if (raw.path && !/^[A-Za-z0-9._\/-]+$/.test(raw.path)) {
+    errors.push("Profile path may contain only letters, digits, dot, underscore, slash and hyphen.");
+  }
+  return { errors: errors, warnings: warnings };
+}
+
+// ---- core end ----
+
+(function () {
+  var base = document.getElementById("base-profile").textContent.replace(/^\n/, "");
+  var ids = ["fsan", "vendor", "equipment", "slot", "model", "code", "path"];
+  var el = {};
+  ids.forEach(function (id) { el[id] = document.getElementById(id); });
+
+  var summary = document.getElementById("summary");
+  var msgs = document.getElementById("msgs");
+  var result = document.getElementById("result");
+  var profilePreview = document.getElementById("profile-preview");
+  var envPreview = document.getElementById("env-preview");
+  var dlProfile = document.getElementById("download-profile");
+  var dlScript = document.getElementById("download-script");
+  var copyProfile = document.getElementById("copy-profile");
+  var copyEnv = document.getElementById("copy-env");
+
+  var current = { text: "", script: "", name: "" };
+  var vendorAuto = true;
+  var renderSeq = 0;
+  var touched = false;
+
+  function readRaw() {
+    var slot = parseInt(el.slot.value, 10);
+    return {
+      vendor: el.vendor.value.trim().toUpperCase(),
+      equipment: el.equipment.value.trim(),
+      slot: isNaN(slot) ? 0 : slot,
+      model: el.model.value.trim(),
+      code: el.code.value.trim().toLowerCase(),
+      path: el.path.value.trim()
+    };
+  }
+
+  function setValidity(id, bad) {
+    el[id].setAttribute("aria-invalid", bad ? "true" : "false");
+  }
+
+  function listMessages(errors, warnings) {
+    msgs.textContent = "";
+    errors.forEach(function (t) {
+      var li = document.createElement("li");
+      li.className = "err";
+      li.textContent = t;
+      msgs.appendChild(li);
+    });
+    warnings.forEach(function (t) {
+      var li = document.createElement("li");
+      li.className = "warn";
+      li.textContent = t;
+      msgs.appendChild(li);
+    });
+  }
+
+  function showStats(extra) {
+    summary.textContent = "";
+    extra.forEach(function (pair) {
+      var span = document.createElement("span");
+      var b = document.createElement("b");
+      b.textContent = pair[1];
+      span.appendChild(document.createTextNode(pair[0] + " "));
+      span.appendChild(b);
+      summary.appendChild(span);
+    });
+  }
+
+  function render() {
+    var seq = ++renderSeq;
+    var raw = readRaw();
+
+    if (vendorAuto) {
+      var derived = el.fsan.value.trim().slice(0, 4).toUpperCase();
+      if (derived.length === 4 && el.vendor.value !== derived) {
+        el.vendor.value = derived;
+        raw.vendor = derived;
+      }
+    }
+
+    var check = validate(raw);
+
+    if (!touched && !raw.vendor && !raw.equipment) {
+      msgs.textContent = "";
+      var note = document.createElement("li");
+      note.className = "note";
+      note.textContent = "Fill in the vendor ID and the equipment ID to generate a profile.";
+      msgs.appendChild(note);
+      result.hidden = true;
+      ["vendor", "equipment", "slot", "model", "code", "path"].forEach(function (id) {
+        el[id].setAttribute("aria-invalid", "false");
+      });
+      dlProfile.disabled = true;
+      dlScript.disabled = true;
+      copyProfile.disabled = true;
+      copyEnv.disabled = true;
+      showStats([["Status", "waiting for input"]]);
+      return;
+    }
+    setValidity("vendor", check.errors.some(function (e) { return e.indexOf("Vendor") === 0; }));
+    setValidity("equipment", check.errors.some(function (e) { return e.indexOf("Equipment") === 0; }));
+    setValidity("slot", check.errors.some(function (e) { return e.indexOf("PON slot") === 0; }));
+    setValidity("model", check.errors.some(function (e) { return e.indexOf("Model") === 0; }));
+    setValidity("code", check.errors.some(function (e) { return e.indexOf("Product") === 0; }));
+    setValidity("path", check.errors.some(function (e) { return e.indexOf("Profile path") === 0; }));
+
+    listMessages(check.errors, check.warnings);
+
+    if (check.errors.length) {
+      result.hidden = true;
+      current = { text: "", script: "", name: "" };
+      dlProfile.disabled = true;
+      dlScript.disabled = true;
+      copyProfile.disabled = true;
+      copyEnv.disabled = true;
+      showStats([["Status", "waiting for valid input"]]);
+      return;
+    }
+
+    var text, script;
+    try {
+      text = buildProfile(base, raw);
+      script = buildApplyScript(raw, raw.path);
+    } catch (e) {
+      var li = document.createElement("li");
+      li.className = "err";
+      li.textContent = "This page is broken: " + e.message + ".";
+      msgs.appendChild(li);
+      result.hidden = true;
+      dlProfile.disabled = true;
+      dlScript.disabled = true;
+      copyProfile.disabled = true;
+      copyEnv.disabled = true;
+      return;
+    }
+
+    current = {
+      text: text,
+      script: script,
+      name: "profile-slot" + raw.slot + ".ini"
+    };
+
+    result.hidden = false;
+    dlProfile.disabled = false;
+    dlScript.disabled = false;
+    copyProfile.disabled = false;
+    copyEnv.disabled = false;
+
+    profilePreview.textContent = text.split("\n").slice(0, 28).join("\n") + "\n...";
+    envPreview.textContent = script;
+
+    var rows = text.split("\n").filter(function (line) {
+      return /^[?!0-9]/.test(line);
+    }).length;
+
+    showStats([
+      ["bytes", String(new TextEncoder().encode(text).length)],
+      ["ME rows", String(rows)]
+    ]);
+
+    if (window.crypto && crypto.subtle && crypto.subtle.digest) {
+      var hashSpan = document.createElement("span");
+      hashSpan.textContent = "sha256 computing";
+      summary.appendChild(hashSpan);
+      var bytes = new TextEncoder().encode(text);
+      crypto.subtle.digest("SHA-256", bytes).then(function (buf) {
+        if (seq !== renderSeq) { return; }
+        var hex = Array.prototype.map.call(new Uint8Array(buf), function (b) {
+          return ("0" + b.toString(16)).slice(-2);
+        }).join("");
+        hashSpan.textContent = "sha256 " + hex.slice(0, 16) + "...";
+        hashSpan.title = hex;
+      }).catch(function () {
+        if (seq === renderSeq) { hashSpan.textContent = ""; }
+      });
+    }
+  }
+
+  function download(name, body) {
+    var blob = new Blob([body], { type: "text/plain;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+  }
+
+  function copy(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        flash("Copied.");
+      }).catch(function () {
+        flash("Copy blocked by the browser. Select the text instead.");
+      });
+    } else {
+      flash("Copy is unavailable here. Select the text instead.");
+    }
+  }
+
+  var flashTimer = null;
+  function flash(message) {
+    var li = document.createElement("li");
+    li.className = "ok";
+    li.textContent = message;
+    msgs.appendChild(li);
+    if (flashTimer) { clearTimeout(flashTimer); }
+    flashTimer = setTimeout(function () {
+      if (li.parentNode) { li.parentNode.removeChild(li); }
+    }, 4000);
+  }
+
+  function userInput() {
+    touched = true;
+    render();
+  }
+
+  el.fsan.addEventListener("input", function () {
+    vendorAuto = true;
+    userInput();
+  });
+  el.vendor.addEventListener("input", function () {
+    vendorAuto = false;
+    userInput();
+  });
+  document.getElementById("rederive").addEventListener("click", function (ev) {
+    ev.preventDefault();
+    vendorAuto = true;
+    userInput();
+  });
+  ["equipment", "slot", "model", "code", "path"].forEach(function (id) {
+    el[id].addEventListener("input", userInput);
+  });
+
+  dlProfile.addEventListener("click", function () {
+    if (current.text) { download(current.name, current.text); }
+  });
+  dlScript.addEventListener("click", function () {
+    if (current.script) { download("apply-profile.sh", current.script); }
+  });
+  copyProfile.addEventListener("click", function () {
+    if (current.text) { copy(current.text); }
+  });
+  copyEnv.addEventListener("click", function () {
+    if (current.script) { copy(current.script); }
+  });
+
+  document.getElementById("clear").addEventListener("click", function () {
+    ["fsan", "vendor", "equipment", "path"].forEach(function (id) { el[id].value = ""; });
+    el.slot.value = "8";
+    el.model.value = "C6500XK";
+    el.code.value = "0x4400";
+    vendorAuto = true;
+    touched = false;
+    render();
+    el.fsan.focus();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

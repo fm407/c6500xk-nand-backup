@@ -701,10 +701,10 @@ Check these defaults before you generate a profile:
 | Interoperability mask | `18` | maps to `gpon.ponip.iop_mask`, not `omci_iop_mask` |
 | PON slot | `8` | the only value observed on a C6500XK |
 | Fix VLANs | `1` | keep it at 1 |
-| Internet VLAN | `0` | 0 means untagged |
+| Internet VLAN | `0` | the default; the router WAN tag is a separate setting |
 | Services VLAN | `36` | one number, not a range |
 
-Read the VLAN warning on the page before you change a VLAN. A wrong Internet VLAN keeps the PON at O5.1 and stops DHCP. Do not save these fields in the LuCI form. The form submits every field and can overwrite your values. Use the commands from the page instead.
+Read the VLAN warning on the page before you change a VLAN. A wrong Internet VLAN keeps the PON at O5.1 and stops DHCP. The module VLAN and the router WAN tag are separate settings. Do not copy the router tag into the module fields. The default Internet VLAN `0` works with a tagged router WAN. Do not save these fields in the LuCI form. The form submits every field and can overwrite your values. Use the commands from the page instead.
 
 The MIB path must stay under `/etc/mibs/`, or use the `../../ptconf/...` form. A plain `/ptconf/...` path is ignored, and the stock MIB is used. The page rejects a path that breaks this rule.
 

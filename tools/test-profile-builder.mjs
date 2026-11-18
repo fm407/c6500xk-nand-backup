@@ -143,7 +143,7 @@ assert.equal(tenWarnings.warnings.length, 5, "each deviation warns");
 const tagged = core.validate({ ...identity, internet_vlan: 201 });
 assert.ok(
   tagged.warnings.some((w) => w.includes("Internet VLAN is tagged")),
-  "a tagged Internet VLAN warns about the router tag"
+  "a tagged Internet VLAN asks for confirmation"
 );
 const noFix = core.validate({ ...identity, fix_vlans: "0" });
 assert.ok(
@@ -165,7 +165,7 @@ assert.ok(withPath.includes("fwenv_set 8311_pon_mode 'xgspon'"), "script sets th
 assert.ok(withPath.includes("fwenv_set 8311_iop_mask 18"), "script sets the interoperability mask");
 assert.ok(withPath.includes("fwenv_set 8311_cp_hw_ver_sync 1"), "script syncs the circuit pack by default");
 assert.ok(withPath.includes("fwenv_set 8311_fix_vlans '1'"), "script keeps VLAN fixes on");
-assert.ok(withPath.includes("fwenv_set 8311_internet_vlan 0"), "script sets the Internet VLAN to untagged");
+assert.ok(withPath.includes("fwenv_set 8311_internet_vlan 0"), "script sets the Internet VLAN to 0");
 assert.ok(withPath.includes("fwenv_set 8311_services_vlan 36"), "script sets the Services VLAN default");
 assert.ok(withPath.includes("/dev/mtd1"), "script reads the first environment copy");
 assert.ok(withPath.includes("/dev/mtd2"), "script reads the second environment copy");

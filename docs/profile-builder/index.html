@@ -145,19 +145,21 @@
   <section class="callout" aria-labelledby="vlan-h">
     <h2 id="vlan-h">Read this before you change a VLAN</h2>
     <p>
-      If the Internet VLAN does not match the router, the link stays up. The PON reaches O5.1.
-      DHCP then fails and you have no internet.
+      A wrong VLAN stops DHCP. The PON can still reach O5.1.
+      The module and the router use separate VLAN settings.
     </p>
     <ul>
       <li>Keep <b>Fix VLANs</b> at <b>1</b>.</li>
-      <li>Set <b>Internet VLAN</b> to <b>0</b> for an untagged WAN.</li>
+      <li>Take both VLAN values from your original unit. If you do not know them, keep the defaults.</li>
+      <li>The default <b>Internet VLAN</b> is <b>0</b>. It works with a tagged router WAN.</li>
+      <li>The router WAN tag is a router setting. Do not copy it into these fields.</li>
       <li>Use one number for <b>Services VLAN</b>. Do not enter a range or a colon.</li>
       <li>Do not save these fields in the LuCI form. The form submits every field and can overwrite your values. Use the commands from this page.</li>
       <li>Reboot after you apply the commands. Then check the WAN lease.</li>
     </ul>
     <p>
       If you lose internet, connect to the module management address (default <code>192.168.11.1</code>). Run <code>fw_printenv | grep 8311_</code>.
-      Compare <code>8311_internet_vlan</code> with the router WAN setting. Correct the value and reboot.
+      Compare <code>8311_internet_vlan</code> with the value from your original unit. Correct the value and reboot.
     </p>
   </section>
 
@@ -408,10 +410,12 @@
           </div>
         </div>
         <span class="hint" id="inet-h">
-          <b>0 means untagged.</b> Use a tag only if the router WAN expects that tag.
+          The default is <b>0</b>. Use the value from your original unit.
+          The router WAN tag is a separate setting. Do not copy it here.
         </span>
         <span class="hint" id="svc-h">
-          Use one number. The firmware default is 36. Internet and Services must not be equal.
+          Use one number. The firmware default is 36. Use the value from your original unit.
+          Internet and Services must not be equal.
         </span>
       </fieldset>
 
@@ -1187,7 +1191,7 @@ function validate(rawInput) {
     bad.services_vlan = true;
   }
   if (v.internet_vlan !== 0) {
-    warnings.push("Internet VLAN is tagged. Make sure the router WAN expects this tag. A mismatch leaves the PON at O5.1 with no DHCP lease.");
+    warnings.push("Internet VLAN is tagged. Confirm this value against your original unit. A wrong value leaves the PON at O5.1 with no DHCP lease.");
   }
 
   if (!/^[A-Za-z0-9 ._-]{1,20}$/.test(v.model)) {

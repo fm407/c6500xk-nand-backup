@@ -276,10 +276,11 @@
         <div class="field">
           <label for="mib_file">MIB file on the module</label>
           <input id="mib_file" name="mib_file" type="text" autocomplete="off" spellcheck="false"
-                 placeholder="/ptconf/8311/profile.ini" aria-describedby="mib-h">
+                 placeholder="../../ptconf/8311/profile.ini" aria-describedby="mib-h">
           <span class="hint" id="mib-h">
-            Point this at your own copy. Do not point it at the packaged template.
-            The daemon writes the effective MIB back into the path that this variable names.
+            Use a path under <code>/etc/mibs/</code>, or the <code>../../ptconf/...</code> form.
+            A plain <code>/ptconf/...</code> path is ignored, and the stock MIB is used.
+            The daemon writes the effective MIB back into this file.
           </span>
         </div>
       </fieldset>
@@ -463,7 +464,7 @@
       <li>It rewrites three kinds of value in a profile whose other rows are model constants: the vendor ID, the equipment ID, and the instance numbers that encode the PON slot.</li>
       <li>It writes the hardware version into ONU-G, and into the circuit-pack rows when Sync is on.</li>
       <li>It leaves the ONU-G serial at <code>00000000</code> on purpose. The daemon derives the serial from the PLOAM serial, and a literal here conflicts with your own registration.</li>
-      <li>It writes the same values as <code>8311_</code> environment commands, because the boot script copies them out of the environment and overwrites the profile rows.</li>
+      <li>It writes the same values as <code>8311_</code> environment commands. The boot script copies them out of the environment and overwrites the profile rows. The helper writes both environment copies.</li>
       <li>It does not generate service rates or GEM identifiers. The OLT owns those values and replays them at runtime.</li>
       <li>Nothing you type is stored, transmitted or logged. There is no analytics, no cookie, no storage call and no request after the page loads. The policy in the page header blocks connections outright.</li>
       <li>The result mirrors one model, validated on one line against one OLT. It is not a guarantee of provisioning, and it is not a substitute for reading your own unit first.</li>
@@ -547,6 +548,28 @@ function padEquipment(value) {
 
 function shq(value) {
   return "'" + String(value).replace(/'/g, "'\\''") + "'";
+}
+
+function normalizePath(path) {
+  var parts = path.split("/");
+  var out = [];
+  for (var i = 0; i < parts.length; i += 1) {
+    var part = parts[i];
+    if (!part || part === ".") { continue; }
+    if (part === "..") {
+      if (out.length) { out.pop(); }
+      continue;
+    }
+    out.push(part);
+  }
+  return "/" + out.join("/");
+}
+
+function mibTarget(value) {
+  if (value.charAt(0) === "/") {
+    return normalizePath(value);
+  }
+  return normalizePath("/etc/mibs/" + value);
 }
 
 function buildBody(base, input) {
@@ -662,95 +685,107 @@ function buildApplyScript(input, pathOverride) {
     "# Run on the module as root, after the profile file is in place.",
     "set -e",
     "",
+    "# fwenv_set writes each value to both environment copies.",
+    "",
     "# Identity and slot",
-    "fw_setenv 8311_vendor_id " + shq(v.vendor),
-    "fw_setenv 8311_equipment_id " + shq(v.equipment),
-    "fw_setenv 8311_pon_slot " + v.slot
+    "fwenv_set 8311_vendor_id " + shq(v.vendor),
+    "fwenv_set 8311_equipment_id " + shq(v.equipment),
+    "fwenv_set 8311_pon_slot " + v.slot
   ];
 
   if (v.fsan) {
-    lines.push("fw_setenv 8311_gpon_sn " + shq(v.fsan));
+    lines.push("fwenv_set 8311_gpon_sn " + shq(v.fsan));
   } else {
-    lines.push("# fw_setenv 8311_gpon_sn <12-character FSAN>");
+    lines.push("# fwenv_set 8311_gpon_sn <12-character FSAN>");
   }
 
   if (v.hw_ver) {
-    lines.push("fw_setenv 8311_hw_ver " + shq(v.hw_ver));
+    lines.push("fwenv_set 8311_hw_ver " + shq(v.hw_ver));
   } else {
-    lines.push("# fw_setenv 8311_hw_ver <hardware version>");
+    lines.push("# fwenv_set 8311_hw_ver <hardware version>");
   }
 
-  lines.push("fw_setenv 8311_cp_hw_ver_sync " + (v.cp_sync ? "1" : "0"));
+  lines.push("fwenv_set 8311_cp_hw_ver_sync " + (v.cp_sync ? "1" : "0"));
 
   if (v.sw_a) {
-    lines.push("fw_setenv 8311_sw_verA " + shq(v.sw_a));
+    lines.push("fwenv_set 8311_sw_verA " + shq(v.sw_a));
   }
   if (v.sw_b) {
-    lines.push("fw_setenv 8311_sw_verB " + shq(v.sw_b));
+    lines.push("fwenv_set 8311_sw_verB " + shq(v.sw_b));
   }
 
   lines.push("", "# PON mode and masks");
-  lines.push("fw_setenv 8311_pon_mode " + shq(v.pon_mode));
-  lines.push("fw_setenv 8311_omcc_version " + shq(v.omcc));
+  lines.push("fwenv_set 8311_pon_mode " + shq(v.pon_mode));
+  lines.push("fwenv_set 8311_omcc_version " + shq(v.omcc));
   lines.push("# 8311_iop_mask maps to gpon.ponip.iop_mask. It is not omci_iop_mask.");
-  lines.push("fw_setenv 8311_iop_mask " + v.iop_mask);
+  lines.push("fwenv_set 8311_iop_mask " + v.iop_mask);
 
   lines.push("", "# Registration");
   if (v.reg_id) {
-    lines.push("fw_setenv 8311_reg_id_hex " + shq(v.reg_id));
+    lines.push("fwenv_set 8311_reg_id_hex " + shq(v.reg_id));
   } else {
-    lines.push("# fw_setenv 8311_reg_id_hex <hex pairs>");
+    lines.push("# fwenv_set 8311_reg_id_hex <hex pairs>");
   }
   if (v.loid) {
-    lines.push("fw_setenv 8311_loid " + shq(v.loid));
+    lines.push("fwenv_set 8311_loid " + shq(v.loid));
   }
   if (v.lpwd) {
-    lines.push("fw_setenv 8311_lpwd " + shq(v.lpwd));
+    lines.push("fwenv_set 8311_lpwd " + shq(v.lpwd));
   }
 
   lines.push("", "# IP host");
   if (v.iphost_mac) {
-    lines.push("fw_setenv 8311_iphost_mac " + shq(v.iphost_mac));
+    lines.push("fwenv_set 8311_iphost_mac " + shq(v.iphost_mac));
   } else {
-    lines.push("# fw_setenv 8311_iphost_mac <AA:BB:CC:DD:EE:FF>");
+    lines.push("# fwenv_set 8311_iphost_mac <AA:BB:CC:DD:EE:FF>");
   }
   if (v.iphost_hostname) {
-    lines.push("fw_setenv 8311_iphost_hostname " + shq(v.iphost_hostname));
+    lines.push("fwenv_set 8311_iphost_hostname " + shq(v.iphost_hostname));
   }
   if (v.iphost_domain) {
-    lines.push("fw_setenv 8311_iphost_domain " + shq(v.iphost_domain));
+    lines.push("fwenv_set 8311_iphost_domain " + shq(v.iphost_domain));
   }
 
   lines.push("", "# Firmware override");
   if (v.override_active) {
-    lines.push("fw_setenv 8311_override_active " + shq(v.override_active));
+    lines.push("fwenv_set 8311_override_active " + shq(v.override_active));
   }
   if (v.override_commit) {
-    lines.push("fw_setenv 8311_override_commit " + shq(v.override_commit));
+    lines.push("fwenv_set 8311_override_commit " + shq(v.override_commit));
   }
   if (v.fw_match) {
     lines.push("fwenv_set --8311 --base64 fw_match " + shq(v.fw_match));
-    lines.push("fw_setenv 8311_fw_match_num " + v.fw_match_num);
+    lines.push("fwenv_set 8311_fw_match_num " + v.fw_match_num);
   }
 
   lines.push("", "# ISP fixes and VLANs. Keep fix_vlans at 1.");
-  lines.push("fw_setenv 8311_fix_vlans " + shq(v.fix_vlans));
-  lines.push("fw_setenv 8311_internet_vlan " + v.internet_vlan);
-  lines.push("fw_setenv 8311_services_vlan " + v.services_vlan);
+  lines.push("fwenv_set 8311_fix_vlans " + shq(v.fix_vlans));
+  lines.push("fwenv_set 8311_internet_vlan " + v.internet_vlan);
+  lines.push("fwenv_set 8311_services_vlan " + v.services_vlan);
 
   lines.push("", "# MIB file. Point this at your own copy, not the packaged template.");
   if (mib) {
-    lines.push("fw_setenv 8311_mib_file " + shq(mib));
+    lines.push("fwenv_set 8311_mib_file " + shq(mib));
   } else {
-    lines.push("# fw_setenv 8311_mib_file <path-on-the-module>");
+    lines.push("# fwenv_set 8311_mib_file <path-on-the-module>");
   }
 
   lines.push(
     "",
-    "# Check the values. Then reboot.",
+    "# Check the active view.",
     "fw_printenv 8311_vendor_id 8311_equipment_id 8311_pon_slot 8311_mib_file \\",
     "  8311_gpon_sn 8311_hw_ver 8311_pon_mode 8311_omcc_version 8311_iop_mask \\",
     "  8311_fix_vlans 8311_internet_vlan 8311_services_vlan",
+    "",
+    "# Check both environment copies. Each key must show the same value.",
+    "for k in 8311_mib_file 8311_fix_vlans 8311_internet_vlan 8311_services_vlan \\",
+    "  8311_iop_mask 8311_pon_mode 8311_omcc_version 8311_pon_slot \\",
+    "  8311_vendor_id 8311_equipment_id 8311_gpon_sn 8311_hw_ver; do",
+    "  a=$(grep -o \"$k=[^ ]*\" /dev/mtd1 | head -1 || true)",
+    "  b=$(grep -o \"$k=[^ ]*\" /dev/mtd2 | head -1 || true)",
+    "  printf '%s mtd1=%s mtd2=%s\\n' \"$k\" \"$a\" \"$b\"",
+    "done",
+    "",
     "echo \"Reboot the module to apply the values.\""
   );
 
@@ -824,9 +859,16 @@ function validate(rawInput) {
 
   if (v.mib_file && !/^[A-Za-z0-9._\/-]+$/.test(v.mib_file)) {
     err("mib_file", "MIB path may contain only letters, digits, dot, underscore, slash and hyphen.");
-  } else if (v.mib_file && /(^|\/)prx300_1U\.ini$/.test(v.mib_file)) {
-    warnings.push("The MIB path points at the packaged template. The daemon can overwrite that file. Use your own copy.");
-  } else if (!v.mib_file) {
+  } else if (v.mib_file) {
+    var target = mibTarget(v.mib_file);
+    var underMibs = target.indexOf("/etc/mibs/") === 0;
+    var underPtconf = v.mib_file.charAt(0) !== "/" && target.indexOf("/ptconf/") === 0;
+    if (!underMibs && !underPtconf) {
+      err("mib_file", "MIB path must stay under /etc/mibs/, or use the ../../ptconf/... form.");
+    } else if (/(^|\/)prx300_1U\.ini$/.test(v.mib_file)) {
+      warnings.push("The MIB path points at the packaged template. The daemon can overwrite that file. Use your own copy.");
+    }
+  } else {
     warnings.push("No MIB path is set. The profile will not be used until 8311_mib_file points at it.");
   }
 

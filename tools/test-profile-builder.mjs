@@ -125,6 +125,10 @@ assert.ok(bad({ slot: 8.5 }), "fractional slot is rejected");
 assert.ok(bad({ model: "MODEL WITH A REALLY LONG NAME" }), "overlong model string is rejected");
 assert.ok(bad({ code: "4400" }), "product code without 0x is rejected");
 assert.ok(bad({ mib_file: "/tmp/it's.ini" }), "quote in MIB path is rejected");
+assert.ok(bad({ mib_file: "/ptconf/8311/profile.ini" }), "a plain /ptconf path is rejected");
+assert.ok(bad({ mib_file: "../../etc/profile.ini" }), "a path that escapes /etc/mibs is rejected");
+assert.ok(!bad({ mib_file: "../../ptconf/8311/profile.ini" }), "the ../../ptconf form is accepted");
+assert.ok(!bad({ mib_file: "/etc/mibs/profile.ini" }), "an /etc/mibs path is accepted");
 assert.ok(bad({ iop_mask: 128 }), "iop mask above 127 is rejected");
 assert.ok(bad({ omcc: "0x80" }), "OMCC version below 0x82 is rejected");
 assert.ok(bad({ internet_vlan: 36, services_vlan: 36 }), "equal VLANs are rejected");
@@ -149,23 +153,26 @@ assert.ok(
 
 // ---- the helper script ----
 
-const withPath = core.buildApplyScript(identity, "/ptconf/8311/profile.ini");
-assert.ok(withPath.includes("fw_setenv 8311_vendor_id 'AAAA'"), "script sets the vendor ID");
-assert.ok(withPath.includes("fw_setenv 8311_equipment_id 'BBBBBBBBBB'"), "script sets the equipment ID");
-assert.ok(withPath.includes("fw_setenv 8311_pon_slot 8"), "script sets the slot");
-assert.ok(withPath.includes("fw_setenv 8311_mib_file '/ptconf/8311/profile.ini'"), "script sets the pointer");
+const withPath = core.buildApplyScript(identity, "../../ptconf/8311/profile.ini");
+assert.ok(withPath.includes("fwenv_set 8311_vendor_id 'AAAA'"), "script sets the vendor ID");
+assert.ok(withPath.includes("fwenv_set 8311_equipment_id 'BBBBBBBBBB'"), "script sets the equipment ID");
+assert.ok(withPath.includes("fwenv_set 8311_pon_slot 8"), "script sets the slot");
+assert.ok(withPath.includes("fwenv_set 8311_mib_file '../../ptconf/8311/profile.ini'"), "script sets the pointer");
 assert.ok(withPath.startsWith("#!/bin/sh\n"), "script has a shebang");
 assert.ok(withPath.includes("set -e"), "script stops on error");
-assert.ok(withPath.includes("fw_setenv 8311_pon_mode 'xgspon'"), "script sets the PON mode");
-assert.ok(withPath.includes("fw_setenv 8311_iop_mask 18"), "script sets the interoperability mask");
-assert.ok(withPath.includes("fw_setenv 8311_cp_hw_ver_sync 1"), "script syncs the circuit pack by default");
-assert.ok(withPath.includes("fw_setenv 8311_fix_vlans '1'"), "script keeps VLAN fixes on");
-assert.ok(withPath.includes("fw_setenv 8311_internet_vlan 0"), "script sets the Internet VLAN to untagged");
-assert.ok(withPath.includes("fw_setenv 8311_services_vlan 36"), "script sets the Services VLAN default");
+assert.ok(withPath.includes("writes each value to both environment copies"), "script explains the two copies");
+assert.ok(withPath.includes("fwenv_set 8311_pon_mode 'xgspon'"), "script sets the PON mode");
+assert.ok(withPath.includes("fwenv_set 8311_iop_mask 18"), "script sets the interoperability mask");
+assert.ok(withPath.includes("fwenv_set 8311_cp_hw_ver_sync 1"), "script syncs the circuit pack by default");
+assert.ok(withPath.includes("fwenv_set 8311_fix_vlans '1'"), "script keeps VLAN fixes on");
+assert.ok(withPath.includes("fwenv_set 8311_internet_vlan 0"), "script sets the Internet VLAN to untagged");
+assert.ok(withPath.includes("fwenv_set 8311_services_vlan 36"), "script sets the Services VLAN default");
+assert.ok(withPath.includes("/dev/mtd1"), "script reads the first environment copy");
+assert.ok(withPath.includes("/dev/mtd2"), "script reads the second environment copy");
 
 const noPath = core.buildApplyScript(identity, "");
-assert.ok(!noPath.includes("fw_setenv 8311_mib_file /"), "script leaves the pointer out when no path is given");
-assert.ok(noPath.includes("# fw_setenv 8311_mib_file <path-on-the-module>"), "script explains the missing pointer");
+assert.ok(!noPath.includes("fwenv_set 8311_mib_file /"), "script leaves the pointer out when no path is given");
+assert.ok(noPath.includes("# fwenv_set 8311_mib_file <path-on-the-module>"), "script explains the missing pointer");
 
 const full = {
   ...identity,
@@ -184,18 +191,18 @@ const full = {
   override_commit: "B",
   fw_match: "^v(\\d+)$",
   fw_match_num: 2,
-  mib_file: "/ptconf/8311/profile.ini"
+  mib_file: "../../ptconf/8311/profile.ini"
 };
 const fullScript = core.buildApplyScript(full);
-assert.ok(fullScript.includes("fw_setenv 8311_gpon_sn 'ABCD12345678'"), "script sets the PON serial");
-assert.ok(fullScript.includes("fw_setenv 8311_hw_ver 'C6500XK'"), "script sets the hardware version");
-assert.ok(fullScript.includes("fw_setenv 8311_omcc_version '0x9A'"), "script sets the OMCC version");
-assert.ok(fullScript.includes("fw_setenv 8311_sw_verA '01.02.03.04'"), "script sets software A");
-assert.ok(fullScript.includes("fw_setenv 8311_reg_id_hex '001122334455'"), "script sets the registration ID");
-assert.ok(fullScript.includes("fw_setenv 8311_iphost_mac 'AA:BB:CC:DD:EE:FF'"), "script sets the IP host MAC");
-assert.ok(fullScript.includes("fw_setenv 8311_override_active 'B'"), "script sets the active bank");
+assert.ok(fullScript.includes("fwenv_set 8311_gpon_sn 'ABCD12345678'"), "script sets the PON serial");
+assert.ok(fullScript.includes("fwenv_set 8311_hw_ver 'C6500XK'"), "script sets the hardware version");
+assert.ok(fullScript.includes("fwenv_set 8311_omcc_version '0x9A'"), "script sets the OMCC version");
+assert.ok(fullScript.includes("fwenv_set 8311_sw_verA '01.02.03.04'"), "script sets software A");
+assert.ok(fullScript.includes("fwenv_set 8311_reg_id_hex '001122334455'"), "script sets the registration ID");
+assert.ok(fullScript.includes("fwenv_set 8311_iphost_mac 'AA:BB:CC:DD:EE:FF'"), "script sets the IP host MAC");
+assert.ok(fullScript.includes("fwenv_set 8311_override_active 'B'"), "script sets the active bank");
 assert.ok(fullScript.includes("fwenv_set --8311 --base64 fw_match '^v(\\d+)$'"), "script base64-encodes the firmware match");
-assert.ok(fullScript.includes("fw_setenv 8311_fw_match_num 2"), "script sets the firmware match number");
+assert.ok(fullScript.includes("fwenv_set 8311_fw_match_num 2"), "script sets the firmware match number");
 
 // ---- OMCC version rewriting ----
 

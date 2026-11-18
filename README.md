@@ -626,10 +626,14 @@ The environment is therefore authoritative and the configuration database is dow
 Set the pointer with the environment tool, read it back from the environment, and confirm it from the boot log rather than from any web page:
 
 ```sh
-fw_setenv <pointer-variable> <profile-path>
+fwenv_set <pointer-variable> <profile-path>
 fw_printenv <pointer-variable>
 logread | grep -i 'MIB file'
 ```
+
+`fwenv_set` writes both environment copies. A single `fw_setenv` call updates one copy, and the other copy keeps the old value. A later fallback can then restore the old value.
+
+The MIB path must stay under `/etc/mibs/`, or use the `../../ptconf/...` form. A plain `/ptconf/...` path is ignored, and the stock MIB is used. The `/ptconf` volume is persistent, but the daemon only accepts a path that resolves under `/etc/mibs/`.
 
 Do not write the custom profile into the packaged template path. The daemon stores the effective MIB back into whatever path the pointer names, so the shipped template is destroyed and no longer matches the firmware image. See [Appendix D.2](#d2-the-daemon-overwrites-whichever-path-the-pointer-names).
 
@@ -702,6 +706,8 @@ Check these defaults before you generate a profile:
 
 Read the VLAN warning on the page before you change a VLAN. A wrong Internet VLAN keeps the PON at O5.1 and stops DHCP. Do not save these fields in the LuCI form. The form submits every field and can overwrite your values. Use the commands from the page instead.
 
+The MIB path must stay under `/etc/mibs/`, or use the `../../ptconf/...` form. A plain `/ptconf/...` path is ignored, and the stock MIB is used. The page rejects a path that breaks this rule.
+
 The page rewrites these profile rows:
 
 | Row group | Count | Rewritten to |
@@ -717,7 +723,7 @@ The page rewrites these profile rows:
 
 Every other row is the model constant from the sample. The ONU-G serial stays `00000000` because the daemon fills it from PLOAM.
 
-The page also writes a helper script. The script sets the identity, versions, PON mode, masks, registration values, IP host, bank overrides, firmware match, VLANs, and the MIB path. It uses `fw_setenv` for normal keys. It uses `fwenv_set --8311 --base64 fw_match` for the one base64 key.
+The page also writes a helper script. The script sets the identity, versions, PON mode, masks, registration values, IP host, bank overrides, firmware match, VLANs, and the MIB path. It uses `fwenv_set` for normal keys. The wrapper writes both environment copies. It uses `fwenv_set --8311 --base64 fw_match` for the one base64 key. The script ends with a loop that reads both copies, so you can see a stale value.
 
 The page runs entirely in the tab. It has no analytics, no cookie and no storage call. It makes no network request after it loads. The content policy in its header blocks connections outright. Nothing you type leaves the browser. Only the two generated files are written, and only when you click download.
 
@@ -730,4 +736,4 @@ node tools/build-profile-builder.mjs
 node tools/test-profile-builder.mjs
 ```
 
-The test checks the built page against the published sample. It covers the slot 8 byte comparison, the OMCC rewrite, the hardware rewrite, the base64 command, and the VLAN rules.
+The test checks the built page against the published sample. It covers the slot 8 byte comparison, the OMCC rewrite, the hardware rewrite, the base64 command, the MIB path rule, the two-copy check, and the VLAN rules.

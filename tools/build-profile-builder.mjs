@@ -54,7 +54,7 @@ if (counts.scriptClose !== 0 || counts.commentOpen !== 0) {
   die("the body contains markup that cannot sit inside a script element");
 }
 
-const template = readFileSync(TEMPLATE, "utf8");
+const template = readFileSync(TEMPLATE, "utf8").replace(/\r\n/g, "\n");
 const placeholder = "{{BASE_PROFILE}}";
 if (template.split(placeholder).length !== 2) {
   die("the template must contain " + placeholder + " exactly once");

@@ -666,6 +666,8 @@ Only two things need editing:
 
 Do not set the serial to a literal, and do not upload the file with the placeholders still in it; it would present a wrong vendor ID and a wrong equipment ID.
 
+The ONU2-G row also carries the OMCC version. The sample uses the firmware default `0xA3`. Use the value that your own OLT expects. The builder writes this value into the row and into the environment.
+
 Two honest limits. The file was normalised by the module's own daemon from a real unit, so it reflects that daemon version's output rather than the shipped template byte for byte. And it was observed on one line against one OLT; the OLT-owned service provisioning is replayed at runtime and is not contained in this file at all.
 
 Slot 8 is already baked in. The class 5 and 6 rows sit at instance `0x0108`, and the class 277 related-port fields read `0x0801xxxx`. The boot helper only rewrites rows that still read `0x0101`, so changing `pon_slot` on top of this file will not renumber it. Keep `pon_slot` at 8, which reproduces the numbering the original unit reported, or renumber those rows by hand if your original unit used a different number. The numbering is chosen by the ONU rather than assigned by the OLT, so a difference is not fatal, but it does stop the profile from mirroring the original unit.
@@ -676,22 +678,56 @@ The sample above needs two values filled in and, if your unit reported a differe
 
 https://fm407.github.io/c6500xk-nand-backup/profile-builder/
 
-Enter the vendor ID (the first four characters of your FSAN) and the equipment ID or CLEI that your original unit reports, adjust the slot if it is not 8, and the page produces the finished profile plus the four `fw_setenv` lines that keep the environment in step with it.
+The form covers every field on the LuCI PON tab and the ISP Fixes tab. It writes the profile rows and the matching `8311_` environment commands. Fill only the values that your own unit reports. The page prefills model and firmware defaults.
 
-What it changes, and nothing else:
+The form groups these fields:
+
+- Identity: PON serial, vendor ID, equipment ID or CLEI, hardware version, circuit-pack sync, software versions A and B.
+- PON: PON mode, OMCC version, interoperability mask, PON slot, MIB file path.
+- Registration: registration ID, logical ONU ID, logical password.
+- IP host: MAC address, hostname, domain name.
+- Firmware: active bank, committed bank, version match pattern, match number.
+- ISP Fixes: Fix VLANs, Internet VLAN, Services VLAN.
+
+Check these defaults before you generate a profile:
+
+| Field | Default | Note |
+| --- | --- | --- |
+| OMCC version | `0xA3` | the firmware default; use the value your OLT expects |
+| Interoperability mask | `18` | maps to `gpon.ponip.iop_mask`, not `omci_iop_mask` |
+| PON slot | `8` | the only value observed on a C6500XK |
+| Fix VLANs | `1` | keep it at 1 |
+| Internet VLAN | `0` | 0 means untagged |
+| Services VLAN | `36` | one number, not a range |
+
+Read the VLAN warning on the page before you change a VLAN. A wrong Internet VLAN keeps the PON at O5.1 and stops DHCP. Do not save these fields in the LuCI form. The form submits every field and can overwrite your values. Use the commands from the page instead.
+
+The page rewrites these profile rows:
 
 | Row group | Count | Rewritten to |
 | --- | ---: | --- |
 | ONU-G and two circuit-pack vendor fields | 3 | your vendor ID |
 | ONU2-G, cardholder and circuit-pack equipment fields | 7 | your equipment ID, NUL padded to 20 bytes |
+| ONU2-G OMCC version | 1 | your OMCC value |
+| ONU-G hardware version | 1 | your hardware version |
+| Circuit-pack hardware versions | 2 | your hardware version when sync is on |
 | Class 5 and 6 cardholder instances | 2 | `0x01` and your slot in hex |
 | Class 11 and 264 instances | 2 | your slot in hex and `01` |
 | Class 277 related-port attributes | 8 | your slot in hex, then `01`, then the queue index |
 
 Every other row is the model constant from the sample. The ONU-G serial stays `00000000` because the daemon fills it from PLOAM.
 
-The page runs entirely in the tab. It has no analytics, no cookie, no storage call and no network request after it loads, and the content policy in its header blocks connections outright. Nothing you type leaves the browser. Only the two generated files are written, and only when you click download.
+The page also writes a helper script. The script sets the identity, versions, PON mode, masks, registration values, IP host, bank overrides, firmware match, VLANs, and the MIB path. It uses `fw_setenv` for normal keys. It uses `fwenv_set --8311 --base64 fw_match` for the one base64 key.
 
-Limits, same as the sample. The output is one model on one line. The page cannot tell you which values your unit reports: read them from your own unit first. It does not generate VLANs, credentials, registration IDs, service rates or GEM identifiers, because those are OLT-owned and replayed at runtime.
+The page runs entirely in the tab. It has no analytics, no cookie and no storage call. It makes no network request after it loads. The content policy in its header blocks connections outright. Nothing you type leaves the browser. Only the two generated files are written, and only when you click download.
 
-The generator lives in the repository. `tools/profile-builder.template.html` holds the page, `tools/build-profile-builder.mjs` splices in the sample body, and `tools/test-profile-builder.mjs` checks the result against the published sample, including a byte comparison at slot 8.
+Limits, same as the sample. The output is one model on one line. The page cannot tell you which values your unit reports: read them from your own unit first. It does not generate service rates or GEM identifiers. The OLT owns those values and replays them at runtime.
+
+The generator lives in the repository. `tools/profile-builder.template.html` holds the page, and `tools/build-profile-builder.mjs` splices in the sample body. Run them from the repository root:
+
+```sh
+node tools/build-profile-builder.mjs
+node tools/test-profile-builder.mjs
+```
+
+The test checks the built page against the published sample. It covers the slot 8 byte comparison, the OMCC rewrite, the hardware rewrite, the base64 command, and the VLAN rules.

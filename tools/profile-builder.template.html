@@ -39,11 +39,11 @@
     color: var(--fg);
     font: 16px/1.55 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   }
-  main { max-width: 62rem; margin: 0 auto; padding: 2rem 1.25rem 5rem; }
+  main { max-width: 68rem; margin: 0 auto; padding: 2rem 1.25rem 5rem; }
   h1 { font-size: 1.7rem; line-height: 1.2; margin: 0 0 .4rem; letter-spacing: -.01em; }
   h2 { font-size: 1.05rem; margin: 0 0 .8rem; letter-spacing: .01em; }
   p { margin: 0 0 .9rem; }
-  .lead { color: var(--muted); max-width: 44rem; }
+  .lead { color: var(--muted); max-width: 46rem; }
   a { color: var(--accent); }
   code, pre, .mono { font-family: var(--mono); font-size: .86rem; }
   .badge {
@@ -52,20 +52,42 @@
     color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent);
     border-radius: 999px; padding: .25rem .7rem; font-size: .8rem; font-weight: 600;
   }
+  .callout {
+    margin: 0 0 1.25rem; padding: 1rem 1.1rem 1.05rem;
+    border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line));
+    border-left: .3rem solid var(--warn);
+    background: color-mix(in srgb, var(--warn) 9%, var(--card));
+    border-radius: .6rem;
+  }
+  .callout h2 { color: var(--warn); margin-bottom: .5rem; }
+  .callout ul { margin: .2rem 0 .6rem; padding-left: 1.2rem; }
+  .callout li { margin-bottom: .35rem; }
+  .callout p:last-child { margin-bottom: 0; }
   .grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
-  @media (min-width: 56rem) { .split { grid-template-columns: minmax(0, 22rem) minmax(0, 1fr); } }
+  @media (min-width: 60rem) { .split { grid-template-columns: minmax(0, 27rem) minmax(0, 1fr); } }
   .card { min-width: 0; background: var(--card); border: 1px solid var(--line); border-radius: .7rem; padding: 1.1rem 1.1rem 1.2rem; }
+  fieldset { border: 0; padding: 0; margin: 0 0 1.2rem; }
+  fieldset:last-of-type { margin-bottom: 0; }
+  legend {
+    width: 100%; padding: 0 0 .4rem; margin-bottom: .85rem;
+    font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); border-bottom: 1px solid var(--line);
+  }
   .field { margin-bottom: .95rem; }
   .field:last-child { margin-bottom: 0; }
   label { display: block; font-weight: 600; font-size: .9rem; margin-bottom: .3rem; }
   .hint { display: block; font-weight: 400; color: var(--muted); font-size: .8rem; margin-top: .25rem; }
-  input {
+  input, select {
     width: 100%; padding: .5rem .6rem; font: inherit; font-size: .95rem;
     color: var(--fg); background: var(--bg);
     border: 1px solid var(--line); border-radius: .4rem;
   }
-  input:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  input[aria-invalid="true"] { border-color: var(--bad); }
+  input[type="checkbox"] { width: auto; margin: 0; }
+  input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--bad); }
+  .check { display: flex; gap: .55rem; align-items: flex-start; }
+  .check label { margin: 0; }
+  .check .hint { margin-top: .1rem; }
   .row { display: flex; gap: .6rem; flex-wrap: wrap; }
   .row > .field { flex: 1 1 8rem; margin-bottom: 0; }
   button {
@@ -77,7 +99,7 @@
   @media (prefers-color-scheme: dark) { button.primary { color: #10151b; } }
   button:disabled { opacity: .45; cursor: not-allowed; }
   .actions { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: 1rem; }
-  details { margin-top: .9rem; border-top: 1px solid var(--line); padding-top: .8rem; }
+  details { margin-top: .2rem; border-top: 1px solid var(--line); padding-top: .8rem; }
   summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
   details .field { margin-top: .8rem; }
   .stat { display: flex; gap: 1.6rem; flex-wrap: wrap; margin: .2rem 0 1rem; font-size: .82rem; color: var(--muted); }
@@ -85,7 +107,7 @@
   pre {
     margin: 0; padding: .8rem .9rem; overflow: auto;
     background: var(--bg); border: 1px solid var(--line); border-radius: .45rem;
-    white-space: pre; max-height: 26rem;
+    white-space: pre; max-height: 28rem;
   }
   .out { margin-top: 1.1rem; }
   #profile-preview { white-space: pre-wrap; }
@@ -113,57 +135,286 @@
   <header>
     <h1>C6500XK profile builder</h1>
     <p class="lead">
-      Enter the vendor ID and equipment ID that your own unit reports, pick the PON slot,
-      and this page writes the profile and the matching environment commands.
-      It fills in model constants that are already known; it does not invent per-unit values.
+      Fill in the values that your own unit reports. This page writes a profile and the matching
+      environment commands. It fills model constants that are already known. It does not invent
+      per-unit values.
     </p>
     <p><span class="badge">Runs entirely in this tab, no network requests</span></p>
   </header>
+
+  <section class="callout" aria-labelledby="vlan-h">
+    <h2 id="vlan-h">Read this before you change a VLAN</h2>
+    <p>
+      If the Internet VLAN does not match the router, the link stays up. The PON reaches O5.1.
+      DHCP then fails and you have no internet.
+    </p>
+    <ul>
+      <li>Keep <b>Fix VLANs</b> at <b>1</b>.</li>
+      <li>Set <b>Internet VLAN</b> to <b>0</b> for an untagged WAN.</li>
+      <li>Use one number for <b>Services VLAN</b>. Do not enter a range or a colon.</li>
+      <li>Do not save these fields in the LuCI form. The form submits every field and can overwrite your values. Use the commands from this page.</li>
+      <li>Reboot after you apply the commands. Then check the WAN lease.</li>
+    </ul>
+    <p>
+      If you lose internet, connect to <code>192.168.11.1</code>. Run <code>fw_printenv | grep 8311_</code>.
+      Compare <code>8311_internet_vlan</code> with the router WAN setting. Correct the value and reboot.
+    </p>
+  </section>
 
   <div class="grid split">
     <section class="card" aria-labelledby="in-h">
       <h2 id="in-h">Your unit</h2>
 
-      <div class="field">
-        <label for="fsan">FSAN or serial, optional</label>
-        <input id="fsan" name="fsan" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false"
-               placeholder="the value your original unit reports" aria-describedby="fsan-h">
-        <span class="hint" id="fsan-h">
-          Only the first four characters are used, as the vendor ID. Nothing else is copied anywhere,
-          and this field is never written to the output.
-        </span>
-      </div>
+      <fieldset>
+        <legend>Identity</legend>
 
-      <div class="field">
-        <label for="vendor">Vendor ID, 4 characters</label>
-        <input id="vendor" name="vendor" type="text" maxlength="4" autocomplete="off" autocapitalize="characters"
-               spellcheck="false" placeholder="ABCD" aria-describedby="vendor-h">
-        <span class="hint" id="vendor-h">
-          Calix units use the first four characters of the FSAN. <a href="#" id="rederive">Take it from the field above</a>.
-        </span>
-      </div>
+        <div class="field">
+          <label for="fsan">PON serial number (FSAN or ONT ID)</label>
+          <input id="fsan" name="fsan" type="text" maxlength="12" autocomplete="off" autocapitalize="characters"
+                 spellcheck="false" placeholder="ABCD12345678" aria-describedby="fsan-h">
+          <span class="hint" id="fsan-h">
+            12 characters: 4 letters or digits, then 8 hex digits. The page uses the first 4 as the vendor ID.
+            The full value goes only into the command output in this tab.
+          </span>
+        </div>
 
-      <div class="field">
-        <label for="equipment">Equipment ID or CLEI, 10 characters</label>
-        <input id="equipment" name="equipment" type="text" maxlength="20" autocomplete="off"
-               spellcheck="false" placeholder="EXAMPLE001" aria-describedby="equipment-h">
-        <span class="hint" id="equipment-h">
-          Ten characters is the observed length. Shorter or longer values are accepted and padded
-          with NUL bytes to the 20-byte attribute, but they will not mirror a ten-character unit.
-        </span>
-      </div>
+        <div class="field">
+          <label for="vendor">Vendor ID, 4 characters</label>
+          <input id="vendor" name="vendor" type="text" maxlength="4" autocomplete="off" autocapitalize="characters"
+                 spellcheck="false" placeholder="ABCD" aria-describedby="vendor-h">
+          <span class="hint" id="vendor-h">
+            Calix units use the first four characters of the FSAN.
+            <a href="#" id="rederive">Take it from the field above</a>.
+          </span>
+        </div>
 
-      <div class="field">
-        <label for="slot">PON slot, 2 to 254</label>
-        <input id="slot" name="slot" type="number" min="2" max="254" step="1" value="8" aria-describedby="slot-h">
+        <div class="field">
+          <label for="equipment">Equipment ID or CLEI</label>
+          <input id="equipment" name="equipment" type="text" maxlength="20" autocomplete="off"
+                 spellcheck="false" placeholder="EXAMPLE001" aria-describedby="equipment-h">
+          <span class="hint" id="equipment-h">
+            Ten characters is the observed length. The attribute is padded with NUL bytes to 20 bytes.
+          </span>
+        </div>
+
+        <div class="field">
+          <label for="hw_ver">Hardware version, up to 14 characters</label>
+          <input id="hw_ver" name="hw_ver" type="text" maxlength="14" autocomplete="off"
+                 spellcheck="false" placeholder="C6500XK" aria-describedby="hw-h">
+          <span class="hint" id="hw-h">
+            Use the value from your own unit. The profile row and the environment must agree.
+          </span>
+        </div>
+
+        <div class="field check">
+          <input id="cp_sync" name="cp_sync" type="checkbox" checked aria-describedby="cp-h">
+          <div>
+            <label for="cp_sync">Sync circuit pack version</label>
+            <span class="hint" id="cp-h">
+              Copy the hardware version into the Circuit Pack MEs [6]. Keep this on for a C6500XK identity.
+            </span>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="sw_a">Software version A</label>
+            <input id="sw_a" name="sw_a" type="text" maxlength="14" autocomplete="off" spellcheck="false"
+                   placeholder="from your unit" aria-describedby="sw-h">
+          </div>
+          <div class="field">
+            <label for="sw_b">Software version B</label>
+            <input id="sw_b" name="sw_b" type="text" maxlength="14" autocomplete="off" spellcheck="false"
+                   placeholder="from your unit" aria-describedby="sw-h">
+          </div>
+        </div>
+        <span class="hint" id="sw-h">
+          These strings identify your unit. Leave them empty if you do not need to mirror them.
+          The daemon fills the Software image MEs [7] at runtime.
+        </span>
+      </fieldset>
+
+      <fieldset>
+        <legend>PON</legend>
+
+        <div class="row">
+          <div class="field">
+            <label for="pon_mode">PON mode</label>
+            <select id="pon_mode" name="pon_mode">
+              <option value="xgspon" selected>XGS-PON</option>
+              <option value="xgpon">XG-PON</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="omcc">OMCC version</label>
+            <input id="omcc" name="omcc" type="text" maxlength="4" autocomplete="off" spellcheck="false"
+                   value="0xA3" aria-describedby="omcc-h">
+          </div>
+        </div>
+        <span class="hint" id="omcc-h">
+          Range 0x82 to 0xBF. The firmware default is <code>0xA3</code>. Use the value from your own unit.
+        </span>
+
+        <div class="row">
+          <div class="field">
+            <label for="iop_mask">OMCI interoperability mask</label>
+            <input id="iop_mask" name="iop_mask" type="number" min="0" max="127" step="1" value="18" aria-describedby="iop-h">
+          </div>
+          <div class="field">
+            <label for="slot">PON slot</label>
+            <input id="slot" name="slot" type="number" min="2" max="254" step="1" value="8" aria-describedby="slot-h">
+          </div>
+        </div>
+        <span class="hint" id="iop-h">
+          This value maps to <code>gpon.ponip.iop_mask</code>. It is not <code>omci_iop_mask</code>.
+          Keep the two values separate.
+        </span>
         <span class="hint" id="slot-h">
-          8 is the only value observed on a C6500XK. Keep it unless your original unit reported
-          a different number. It is local numbering that the ONU chooses, not a value the OLT assigns.
+          8 is the only value observed on a C6500XK. Keep it unless your original unit reported a different number.
         </span>
-      </div>
+
+        <div class="field">
+          <label for="mib_file">MIB file on the module</label>
+          <input id="mib_file" name="mib_file" type="text" autocomplete="off" spellcheck="false"
+                 placeholder="/ptconf/8311/profile.ini" aria-describedby="mib-h">
+          <span class="hint" id="mib-h">
+            Point this at your own copy. Do not point it at the packaged template.
+            The daemon writes the effective MIB back into the path that this variable names.
+          </span>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Registration</legend>
+
+        <div class="field">
+          <label for="reg_id">Registration ID (hex)</label>
+          <input id="reg_id" name="reg_id" type="text" maxlength="72" autocomplete="off" spellcheck="false"
+                 placeholder="hex pairs, up to 36 bytes" aria-describedby="reg-h">
+          <span class="hint" id="reg-h">
+            A PLOAM password sits in the last 12 bytes. Leave empty if your OLT does not use it.
+          </span>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="loid">Logical ONU ID</label>
+            <input id="loid" name="loid" type="text" maxlength="24" autocomplete="off" spellcheck="false"
+                   placeholder="up to 24 characters">
+          </div>
+          <div class="field">
+            <label for="lpwd">Logical password</label>
+            <input id="lpwd" name="lpwd" type="text" maxlength="12" autocomplete="off" spellcheck="false"
+                   placeholder="up to 12 characters">
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>IP host</legend>
+
+        <div class="field">
+          <label for="iphost_mac">IP host MAC address</label>
+          <input id="iphost_mac" name="iphost_mac" type="text" maxlength="17" autocomplete="off" spellcheck="false"
+                 placeholder="AA:BB:CC:DD:EE:FF" aria-describedby="mac-h">
+          <span class="hint" id="mac-h">
+            Use the value from your own unit. The module also derives a default from the PON serial.
+          </span>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="iphost_hostname">Hostname</label>
+            <input id="iphost_hostname" name="iphost_hostname" type="text" maxlength="25" autocomplete="off"
+                   spellcheck="false" placeholder="up to 25 characters">
+          </div>
+          <div class="field">
+            <label for="iphost_domain">Domain name</label>
+            <input id="iphost_domain" name="iphost_domain" type="text" maxlength="25" autocomplete="off"
+                   spellcheck="false" placeholder="up to 25 characters">
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Firmware override</legend>
+
+        <div class="row">
+          <div class="field">
+            <label for="override_active">Active bank</label>
+            <select id="override_active" name="override_active">
+              <option value="" selected>No override</option>
+              <option value="A">A</option>
+              <option value="B">B</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="override_commit">Committed bank</label>
+            <select id="override_commit" name="override_commit">
+              <option value="" selected>No override</option>
+              <option value="A">A</option>
+              <option value="B">B</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="fw_match">Firmware version match</label>
+          <input id="fw_match" name="fw_match" type="text" maxlength="255" autocomplete="off" spellcheck="false"
+                 placeholder="regular expression, optional" aria-describedby="fwm-h">
+          <span class="hint" id="fwm-h">
+            The script sends this value through <code>fwenv_set --base64</code>.
+            Leave empty if you do not use automatic version updates.
+          </span>
+        </div>
+
+        <div class="field">
+          <label for="fw_match_num">Firmware match number</label>
+          <input id="fw_match_num" name="fw_match_num" type="number" min="1" max="99" step="1" value="1"
+                 aria-describedby="fwn-h">
+          <span class="hint" id="fwn-h">
+            Use this match when the pattern has more than one result. The default is 1.
+          </span>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>ISP fixes</legend>
+
+        <div class="field">
+          <label for="fix_vlans">Fix VLANs</label>
+          <select id="fix_vlans" name="fix_vlans" aria-describedby="fix-h">
+            <option value="0">Disabled</option>
+            <option value="1" selected>Enabled</option>
+            <option value="2">Hook script only</option>
+          </select>
+          <span class="hint" id="fix-h">
+            Keep this at <b>1</b>. If you set 0, the automatic VLAN fixes do not run.
+          </span>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="internet_vlan">Internet VLAN</label>
+            <input id="internet_vlan" name="internet_vlan" type="number" min="0" max="4095" step="1" value="0"
+                   aria-describedby="inet-h">
+          </div>
+          <div class="field">
+            <label for="services_vlan">Services VLAN</label>
+            <input id="services_vlan" name="services_vlan" type="number" min="1" max="4095" step="1" value="36"
+                   aria-describedby="svc-h">
+          </div>
+        </div>
+        <span class="hint" id="inet-h">
+          <b>0 means untagged.</b> Use a tag only if the router WAN expects that tag.
+        </span>
+        <span class="hint" id="svc-h">
+          Use one number. The firmware default is 36. Internet and Services must not be equal.
+        </span>
+      </fieldset>
 
       <details>
-        <summary>Advanced</summary>
+        <summary>Advanced model constants</summary>
         <div class="field">
           <label for="model">Model string</label>
           <input id="model" name="model" type="text" maxlength="20" autocomplete="off" spellcheck="false" value="C6500XK">
@@ -173,15 +424,6 @@
           <label for="code">Vendor product code</label>
           <input id="code" name="code" type="text" maxlength="6" autocomplete="off" spellcheck="false" value="0x4400">
           <span class="hint">Hex, written to ONU2-G. Only <code>0x4400</code> is validated.</span>
-        </div>
-        <div class="field">
-          <label for="path">Profile path on the module, optional</label>
-          <input id="path" name="path" type="text" autocomplete="off" spellcheck="false"
-                 placeholder="/ptconf/8311/profile.ini" aria-describedby="path-h">
-          <span class="hint" id="path-h">
-            Used for the <code>fw_setenv</code> line in the helper script. Leave it empty to fill in later.
-            Do not point this at the packaged template.
-          </span>
         </div>
       </details>
 
@@ -218,12 +460,13 @@
   <section class="foot">
     <h2>What this page does and does not do</h2>
     <ul>
-      <li>It rewrites exactly three kinds of value in a profile whose other rows are model constants: the vendor ID, the equipment ID, and the instance numbers that encode the PON slot.</li>
+      <li>It rewrites three kinds of value in a profile whose other rows are model constants: the vendor ID, the equipment ID, and the instance numbers that encode the PON slot.</li>
+      <li>It writes the hardware version into ONU-G, and into the circuit-pack rows when Sync is on.</li>
       <li>It leaves the ONU-G serial at <code>00000000</code> on purpose. The daemon derives the serial from the PLOAM serial, and a literal here conflicts with your own registration.</li>
-      <li>It writes the same values as <code>8311_vendor_id</code> and <code>8311_equipment_id</code> commands, because the boot script copies those out of the environment and overwrites the profile rows.</li>
-      <li>It does not generate VLANs, login credentials, registration IDs, service rates or GEM identifiers. Those are owned by the OLT and are replayed at runtime.</li>
+      <li>It writes the same values as <code>8311_</code> environment commands, because the boot script copies them out of the environment and overwrites the profile rows.</li>
+      <li>It does not generate service rates or GEM identifiers. The OLT owns those values and replays them at runtime.</li>
       <li>Nothing you type is stored, transmitted or logged. There is no analytics, no cookie, no storage call and no request after the page loads. The policy in the page header blocks connections outright.</li>
-      <li>The result is a mirror of one model, validated on one line against one OLT. It is not a guarantee of provisioning, and it is not a substitute for reading your own unit first.</li>
+      <li>The result mirrors one model, validated on one line against one OLT. It is not a guarantee of provisioning, and it is not a substitute for reading your own unit first.</li>
     </ul>
     <p>
       Source and method: <a href="https://github.com/fm407/c6500xk-nand-backup#f6-profile-builder">README appendix F</a>.
@@ -233,7 +476,7 @@
 </main>
 
 <noscript>
-  <p style="max-width:62rem;margin:0 auto;padding:1rem 1.25rem;color:#a3241c">
+  <p style="max-width:68rem;margin:0 auto;padding:1rem 1.25rem;color:#a3241c">
     This page needs JavaScript. Nothing is sent anywhere; the script runs locally in the browser.
   </p>
 </noscript>
@@ -248,6 +491,52 @@
 var VENDOR_TOKEN_ROWS = 3;
 var EQUIP_TOKEN_ROWS = 7;
 
+var DEFAULTS = {
+  fsan: "",
+  vendor: "",
+  equipment: "",
+  hw_ver: "",
+  cp_sync: true,
+  sw_a: "",
+  sw_b: "",
+  pon_mode: "xgspon",
+  omcc: "0xA3",
+  iop_mask: 18,
+  slot: 8,
+  mib_file: "",
+  reg_id: "",
+  loid: "",
+  lpwd: "",
+  iphost_mac: "",
+  iphost_hostname: "",
+  iphost_domain: "",
+  override_active: "",
+  override_commit: "",
+  fw_match: "",
+  fw_match_num: 1,
+  fix_vlans: "1",
+  internet_vlan: 0,
+  services_vlan: 36,
+  model: "C6500XK",
+  code: "0x4400"
+};
+
+function withDefaults(input) {
+  var out = {};
+  var key;
+  for (key in DEFAULTS) {
+    if (Object.prototype.hasOwnProperty.call(DEFAULTS, key)) {
+      out[key] = DEFAULTS[key];
+    }
+  }
+  for (key in input) {
+    if (Object.prototype.hasOwnProperty.call(input, key) && input[key] !== undefined && input[key] !== null) {
+      out[key] = input[key];
+    }
+  }
+  return out;
+}
+
 function hex2(n) {
   return ("0" + n.toString(16)).slice(-2);
 }
@@ -256,22 +545,27 @@ function padEquipment(value) {
   return value + "\\0".repeat(20 - value.length);
 }
 
+function shq(value) {
+  return "'" + String(value).replace(/'/g, "'\\''") + "'";
+}
+
 function buildBody(base, input) {
+  var v = withDefaults(input);
   var text = base;
 
   var vendorHits = (text.match(/"XXXX"/g) || []).length;
   if (vendorHits !== VENDOR_TOKEN_ROWS) {
     throw new Error("base profile holds " + vendorHits + " vendor rows, expected " + VENDOR_TOKEN_ROWS);
   }
-  text = text.replace(/"XXXX"/g, '"' + input.vendor + '"');
+  text = text.replace(/"XXXX"/g, '"' + v.vendor + '"');
 
   var equipPlain = /^257 0x0000 "XXXXXXXXXX"/m;
   if (!equipPlain.test(text)) {
     throw new Error("base profile is missing the ONU2-G equipment row");
   }
-  text = text.replace(equipPlain, '257 0x0000 "' + input.equipment + '"');
+  text = text.replace(equipPlain, '257 0x0000 "' + v.equipment + '"');
 
-  var padded = padEquipment(input.equipment);
+  var padded = padEquipment(v.equipment);
   var equipHits = 0;
   text = text.replace(/"XXXXXXXXXX(?:\\0)*"/g, function () {
     equipHits += 1;
@@ -281,7 +575,11 @@ function buildBody(base, input) {
     throw new Error("base profile holds " + equipHits + " padded equipment rows, expected " + (EQUIP_TOKEN_ROWS - 1));
   }
 
-  var slotHex = hex2(input.slot);
+  text = text.replace(/^(257 0x0000 "[^"]*"\s+)0x[0-9a-fA-F]{2}(\s+0x4400\b)/m, function (m, prefix, suffix) {
+    return prefix + v.omcc.toLowerCase() + suffix;
+  });
+
+  var slotHex = hex2(v.slot);
   text = text.replace(/^([56]) 0x0108\b/gm, function (m, cls) {
     return cls + " 0x01" + slotHex;
   });
@@ -292,6 +590,17 @@ function buildBody(base, input) {
     return prefix + "0x" + slotHex + "01";
   });
 
+  if (v.hw_ver) {
+    text = text.replace(/^(256 0 "[^"]*") "C6500XK"/m, function (m, prefix) {
+      return prefix + ' "' + v.hw_ver + '"';
+    });
+    if (v.cp_sync) {
+      text = text.replace(/^(6\s+\S+(?:\s+(?:\S+|"[^"]*")){3}\s+)"C6500XK"/gm, function (m, prefix) {
+        return prefix + '"' + v.hw_ver + '"';
+      });
+    }
+  }
+
   if (/"XXXX"|XXXXXXXXXX/.test(text)) {
     throw new Error("a placeholder survived the rewrite");
   }
@@ -299,28 +608,35 @@ function buildBody(base, input) {
 }
 
 function buildHeader(input) {
-  var slotHex = hex2(input.slot);
+  var v = withDefaults(input);
+  var slotHex = hex2(v.slot);
   function row(label, value) {
     return "# " + label.padEnd(15, " ") + ": " + value;
   }
-  return [
-    "# Profile for a " + input.model + " identity on an 8311 XGS-PON module.",
+  var lines = [
+    "# Profile for a " + v.model + " identity on an 8311 XGS-PON module.",
     "#",
     "# Generated in the browser by the profile builder:",
     "# https://fm407.github.io/c6500xk-nand-backup/profile-builder/",
     "#",
-    row("Vendor ID", input.vendor + "   (3 rows)"),
-    row("Equipment ID", input.equipment + "   (7 rows)"),
-    row("PON slot", input.slot + " (0x" + slotHex + ")   (12 rows)"),
-    row("Product code", input.code),
-    row("Model string", input.model),
+    row("Vendor ID", v.vendor + "   (3 rows)"),
+    row("Equipment ID", v.equipment + "   (7 rows)"),
+    row("PON slot", v.slot + " (0x" + slotHex + ")   (12 rows)"),
+    row("Product code", v.code),
+    row("Model string", v.model),
+    row("OMCC version", v.omcc)
+  ];
+  if (v.hw_ver) {
+    lines.push(row("Hardware version", v.hw_ver));
+  }
+  lines = lines.concat([
     "#",
     "# Read before use:",
     "#   - The serial on ONU-G stays 00000000 on purpose. The daemon derives it from",
     "#     the PLOAM serial, and a literal here conflicts with your registration.",
-    "#   - Set 8311_vendor_id, 8311_equipment_id and 8311_pon_slot in the U-Boot",
-    "#     environment as well. The boot script copies them over the profile rows.",
-    "#   - Keep the file on a persistent path and point the MIB variable at it.",
+    "#   - Apply the environment commands from the page. The boot script copies them",
+    "#     over the profile rows.",
+    "#   - Keep the file on a persistent path and point 8311_mib_file at it.",
     "#     Do not overwrite the packaged template: the daemon writes the effective",
     "#     MIB back into whichever path that variable names.",
     "#   - This mirrors one model on one line. Service provisioning is OLT-owned and",
@@ -329,74 +645,271 @@ function buildHeader(input) {
     "# layout: <class id> <instance id> <attribute 1> ... <attribute 16>",
     "# conventions: \\s is a space, \\0 is a NUL, \"a b c\" is one attribute",
     ""
-  ].join("\n");
+  ]);
+  return lines.join("\n");
 }
 
 function buildProfile(base, input) {
   return buildHeader(input) + "\n" + buildBody(base, input).replace(/\s+$/, "") + "\n";
 }
 
-function buildApplyScript(input, path) {
+function buildApplyScript(input, pathOverride) {
+  var v = withDefaults(input);
+  var mib = pathOverride !== undefined ? pathOverride : v.mib_file;
   var lines = [
     "#!/bin/sh",
     "# Generated by the C6500XK profile builder.",
     "# Run on the module as root, after the profile file is in place.",
     "set -e",
     "",
-    "fw_setenv 8311_vendor_id '" + input.vendor + "'",
-    "fw_setenv 8311_equipment_id '" + input.equipment + "'",
-    "fw_setenv 8311_pon_slot " + input.slot
+    "# Identity and slot",
+    "fw_setenv 8311_vendor_id " + shq(v.vendor),
+    "fw_setenv 8311_equipment_id " + shq(v.equipment),
+    "fw_setenv 8311_pon_slot " + v.slot
   ];
-  if (path) {
-    lines.push("fw_setenv 8311_mib_file '" + path + "'");
+
+  if (v.fsan) {
+    lines.push("fw_setenv 8311_gpon_sn " + shq(v.fsan));
   } else {
-    lines.push("");
-    lines.push("# The profile path was left empty in the builder. Set it by hand:");
+    lines.push("# fw_setenv 8311_gpon_sn <12-character FSAN>");
+  }
+
+  if (v.hw_ver) {
+    lines.push("fw_setenv 8311_hw_ver " + shq(v.hw_ver));
+  } else {
+    lines.push("# fw_setenv 8311_hw_ver <hardware version>");
+  }
+
+  lines.push("fw_setenv 8311_cp_hw_ver_sync " + (v.cp_sync ? "1" : "0"));
+
+  if (v.sw_a) {
+    lines.push("fw_setenv 8311_sw_verA " + shq(v.sw_a));
+  }
+  if (v.sw_b) {
+    lines.push("fw_setenv 8311_sw_verB " + shq(v.sw_b));
+  }
+
+  lines.push("", "# PON mode and masks");
+  lines.push("fw_setenv 8311_pon_mode " + shq(v.pon_mode));
+  lines.push("fw_setenv 8311_omcc_version " + shq(v.omcc));
+  lines.push("# 8311_iop_mask maps to gpon.ponip.iop_mask. It is not omci_iop_mask.");
+  lines.push("fw_setenv 8311_iop_mask " + v.iop_mask);
+
+  lines.push("", "# Registration");
+  if (v.reg_id) {
+    lines.push("fw_setenv 8311_reg_id_hex " + shq(v.reg_id));
+  } else {
+    lines.push("# fw_setenv 8311_reg_id_hex <hex pairs>");
+  }
+  if (v.loid) {
+    lines.push("fw_setenv 8311_loid " + shq(v.loid));
+  }
+  if (v.lpwd) {
+    lines.push("fw_setenv 8311_lpwd " + shq(v.lpwd));
+  }
+
+  lines.push("", "# IP host");
+  if (v.iphost_mac) {
+    lines.push("fw_setenv 8311_iphost_mac " + shq(v.iphost_mac));
+  } else {
+    lines.push("# fw_setenv 8311_iphost_mac <AA:BB:CC:DD:EE:FF>");
+  }
+  if (v.iphost_hostname) {
+    lines.push("fw_setenv 8311_iphost_hostname " + shq(v.iphost_hostname));
+  }
+  if (v.iphost_domain) {
+    lines.push("fw_setenv 8311_iphost_domain " + shq(v.iphost_domain));
+  }
+
+  lines.push("", "# Firmware override");
+  if (v.override_active) {
+    lines.push("fw_setenv 8311_override_active " + shq(v.override_active));
+  }
+  if (v.override_commit) {
+    lines.push("fw_setenv 8311_override_commit " + shq(v.override_commit));
+  }
+  if (v.fw_match) {
+    lines.push("fwenv_set --8311 --base64 fw_match " + shq(v.fw_match));
+    lines.push("fw_setenv 8311_fw_match_num " + v.fw_match_num);
+  }
+
+  lines.push("", "# ISP fixes and VLANs. Keep fix_vlans at 1.");
+  lines.push("fw_setenv 8311_fix_vlans " + shq(v.fix_vlans));
+  lines.push("fw_setenv 8311_internet_vlan " + v.internet_vlan);
+  lines.push("fw_setenv 8311_services_vlan " + v.services_vlan);
+
+  lines.push("", "# MIB file. Point this at your own copy, not the packaged template.");
+  if (mib) {
+    lines.push("fw_setenv 8311_mib_file " + shq(mib));
+  } else {
     lines.push("# fw_setenv 8311_mib_file <path-on-the-module>");
   }
-  lines.push("");
-  lines.push("fw_printenv 8311_vendor_id 8311_equipment_id 8311_pon_slot 8311_mib_file");
+
+  lines.push(
+    "",
+    "# Check the values. Then reboot.",
+    "fw_printenv 8311_vendor_id 8311_equipment_id 8311_pon_slot 8311_mib_file \\",
+    "  8311_gpon_sn 8311_hw_ver 8311_pon_mode 8311_omcc_version 8311_iop_mask \\",
+    "  8311_fix_vlans 8311_internet_vlan 8311_services_vlan",
+    "echo \"Reboot the module to apply the values.\""
+  );
+
   return lines.join("\n") + "\n";
 }
 
-function validate(raw) {
+function isInt(value) {
+  return typeof value === "number" && isFinite(value) && Math.floor(value) === value;
+}
+
+function validate(rawInput) {
+  var v = withDefaults(rawInput);
   var errors = [];
   var warnings = [];
+  var bad = {};
 
-  if (!/^[A-Za-z0-9]{4}$/.test(raw.vendor)) {
-    errors.push("Vendor ID must be exactly 4 letters or digits.");
+  function err(id, message) {
+    errors.push(message);
+    bad[id] = true;
   }
-  if (!/^[A-Za-z0-9._-]{1,20}$/.test(raw.equipment)) {
-    errors.push("Equipment ID must be 1 to 20 characters: letters, digits, dot, underscore or hyphen.");
-  } else if (raw.equipment.length !== 10) {
-    warnings.push("Equipment ID is " + raw.equipment.length + " characters. The observed unit reported 10, and the attribute is padded to 20 bytes.");
+
+  if (!/^[A-Za-z0-9]{4}$/.test(v.vendor)) {
+    err("vendor", "Vendor ID must be exactly 4 letters or digits.");
   }
-  if (raw.slot < 2 || raw.slot > 254 || String(raw.slot) !== String(Math.floor(raw.slot))) {
-    errors.push("PON slot must be a whole number from 2 to 254.");
-  } else if (raw.slot !== 8) {
-    warnings.push("PON slot " + raw.slot + " is not the observed value. Make sure your original unit reported it before relying on it.");
+  if (!/^[A-Za-z0-9._-]{1,20}$/.test(v.equipment)) {
+    err("equipment", "Equipment ID must be 1 to 20 characters: letters, digits, dot, underscore or hyphen.");
+  } else if (v.equipment.length !== 10) {
+    warnings.push("Equipment ID is " + v.equipment.length + " characters. The observed unit reported 10, and the attribute is padded to 20 bytes.");
   }
-  if (!/^[A-Za-z0-9 ._-]{1,20}$/.test(raw.model)) {
-    errors.push("Model string must be 1 to 20 characters: letters, digits, space, dot, underscore or hyphen.");
-  } else if (raw.model !== "C6500XK") {
+
+  if (v.fsan && !/^[A-Za-z0-9]{4}[A-Fa-f0-9]{8}$/.test(v.fsan)) {
+    err("fsan", "PON serial must be 12 characters: 4 letters or digits, then 8 hex digits.");
+  } else if (!v.fsan) {
+    warnings.push("No PON serial is set. The profile keeps 00000000 on ONU-G. Set 8311_gpon_sn if your OLT uses PLOAM registration.");
+  } else if (v.vendor && v.fsan.slice(0, 4).toUpperCase() !== v.vendor.toUpperCase()) {
+    warnings.push("The first four characters of the PON serial do not match the Vendor ID.");
+  }
+
+  if (v.hw_ver && !/^[A-Za-z0-9._ \/-]{1,14}$/.test(v.hw_ver)) {
+    err("hw_ver", "Hardware version must be 1 to 14 characters: letters, digits, space, dot, underscore, slash or hyphen.");
+  }
+  if (v.cp_sync && !v.hw_ver) {
+    warnings.push("Sync circuit pack is on but the hardware version is empty. The circuit-pack rows will not change.");
+  }
+
+  if (v.sw_a && !/^[A-Za-z0-9._ \/-]{1,14}$/.test(v.sw_a)) {
+    err("sw_a", "Software version A must be 1 to 14 characters: letters, digits, space, dot, underscore, slash or hyphen.");
+  }
+  if (v.sw_b && !/^[A-Za-z0-9._ \/-]{1,14}$/.test(v.sw_b)) {
+    err("sw_b", "Software version B must be 1 to 14 characters: letters, digits, space, dot, underscore, slash or hyphen.");
+  }
+
+  if (v.pon_mode !== "xgspon" && v.pon_mode !== "xgpon") {
+    err("pon_mode", "PON mode must be XGS-PON or XG-PON.");
+  }
+
+  var omccValue = /^0x[0-9A-Fa-f]{2}$/.test(v.omcc) ? parseInt(v.omcc, 16) : NaN;
+  if (isNaN(omccValue) || omccValue < 0x82 || omccValue > 0xbf) {
+    err("omcc", "OMCC version must be hex from 0x82 to 0xBF.");
+  }
+
+  if (!isInt(v.iop_mask) || v.iop_mask < 0 || v.iop_mask > 127) {
+    err("iop_mask", "Interoperability mask must be a whole number from 0 to 127.");
+  }
+
+  if (!isInt(v.slot) || v.slot < 2 || v.slot > 254) {
+    err("slot", "PON slot must be a whole number from 2 to 254.");
+  } else if (v.slot !== 8) {
+    warnings.push("PON slot " + v.slot + " is not the observed value. Make sure your original unit reported it before relying on it.");
+  }
+
+  if (v.mib_file && !/^[A-Za-z0-9._\/-]+$/.test(v.mib_file)) {
+    err("mib_file", "MIB path may contain only letters, digits, dot, underscore, slash and hyphen.");
+  } else if (v.mib_file && /(^|\/)prx300_1U\.ini$/.test(v.mib_file)) {
+    warnings.push("The MIB path points at the packaged template. The daemon can overwrite that file. Use your own copy.");
+  } else if (!v.mib_file) {
+    warnings.push("No MIB path is set. The profile will not be used until 8311_mib_file points at it.");
+  }
+
+  if (v.reg_id && !/^([0-9A-Fa-f]{2}){1,36}$/.test(v.reg_id)) {
+    err("reg_id", "Registration ID must be hex pairs, up to 72 characters.");
+  }
+  if (v.loid && (!/^[^\r\n"]{1,24}$/.test(v.loid))) {
+    err("loid", "Logical ONU ID must be 1 to 24 characters and must not contain a quote.");
+  }
+  if (v.lpwd && (!/^[^\r\n"]{1,12}$/.test(v.lpwd))) {
+    err("lpwd", "Logical password must be 1 to 12 characters and must not contain a quote.");
+  }
+
+  if (v.iphost_mac && !/^[A-Fa-f0-9]{2}(:[A-Fa-f0-9]{2}){5}$/.test(v.iphost_mac)) {
+    err("iphost_mac", "IP host MAC must use the form AA:BB:CC:DD:EE:FF.");
+  }
+  if (v.iphost_hostname && !/^[A-Za-z0-9._-]{1,25}$/.test(v.iphost_hostname)) {
+    err("iphost_hostname", "Hostname must be 1 to 25 characters: letters, digits, dot, underscore or hyphen.");
+  }
+  if (v.iphost_domain && !/^[A-Za-z0-9._-]{1,25}$/.test(v.iphost_domain)) {
+    err("iphost_domain", "Domain name must be 1 to 25 characters: letters, digits, dot, underscore or hyphen.");
+  }
+
+  if (v.override_active && v.override_active !== "A" && v.override_active !== "B") {
+    err("override_active", "Active bank must be empty, A or B.");
+  }
+  if (v.override_commit && v.override_commit !== "A" && v.override_commit !== "B") {
+    err("override_commit", "Committed bank must be empty, A or B.");
+  }
+  if (v.fw_match && v.fw_match.length > 255) {
+    err("fw_match", "Firmware version match must not exceed 255 characters.");
+  }
+  if (v.fw_match && (!isInt(v.fw_match_num) || v.fw_match_num < 1 || v.fw_match_num > 99)) {
+    err("fw_match_num", "Firmware match number must be a whole number from 1 to 99.");
+  }
+
+  if (v.fix_vlans !== "0" && v.fix_vlans !== "1" && v.fix_vlans !== "2") {
+    err("fix_vlans", "Fix VLANs must be 0, 1 or 2.");
+  } else if (v.fix_vlans !== "1") {
+    warnings.push("Fix VLANs is not 1. The automatic VLAN fixes will not run, and TV or phone service may fail.");
+  }
+
+  if (!isInt(v.internet_vlan) || v.internet_vlan < 0 || v.internet_vlan > 4095) {
+    err("internet_vlan", "Internet VLAN must be a whole number from 0 to 4095.");
+  }
+  if (!isInt(v.services_vlan) || v.services_vlan < 1 || v.services_vlan > 4095) {
+    err("services_vlan", "Services VLAN must be a whole number from 1 to 4095.");
+  }
+  if (isInt(v.internet_vlan) && isInt(v.services_vlan) && v.internet_vlan === v.services_vlan) {
+    err("internet_vlan", "Internet VLAN and Services VLAN must be different.");
+    bad.services_vlan = true;
+  }
+  if (v.internet_vlan !== 0) {
+    warnings.push("Internet VLAN is tagged. Make sure the router WAN expects this tag. A mismatch leaves the PON at O5.1 with no DHCP lease.");
+  }
+
+  if (!/^[A-Za-z0-9 ._-]{1,20}$/.test(v.model)) {
+    err("model", "Model string must be 1 to 20 characters: letters, digits, space, dot, underscore or hyphen.");
+  } else if (v.model !== "C6500XK") {
     warnings.push("Model string is not C6500XK. The row counts and queue layout in this profile were not validated for another model.");
   }
-  if (!/^0x[0-9a-fA-F]{1,4}$/.test(raw.code)) {
-    errors.push("Product code must be hex with a 0x prefix, up to 4 digits.");
-  } else if (raw.code.toLowerCase() !== "0x4400") {
+  if (!/^0x[0-9a-fA-F]{1,4}$/.test(v.code)) {
+    err("code", "Product code must be hex with a 0x prefix, up to 4 digits.");
+  } else if (v.code.toLowerCase() !== "0x4400") {
     warnings.push("Product code is not 0x4400, the value the observed unit reported.");
   }
-  if (raw.path && !/^[A-Za-z0-9._\/-]+$/.test(raw.path)) {
-    errors.push("Profile path may contain only letters, digits, dot, underscore, slash and hyphen.");
-  }
-  return { errors: errors, warnings: warnings };
+
+  return { errors: errors, warnings: warnings, bad: bad };
 }
 
 // ---- core end ----
 
 (function () {
   var base = document.getElementById("base-profile").textContent.replace(/^\n/, "");
-  var ids = ["fsan", "vendor", "equipment", "slot", "model", "code", "path"];
+  var ids = [
+    "fsan", "vendor", "equipment", "hw_ver", "cp_sync", "sw_a", "sw_b",
+    "pon_mode", "omcc", "iop_mask", "slot", "mib_file",
+    "reg_id", "loid", "lpwd",
+    "iphost_mac", "iphost_hostname", "iphost_domain",
+    "override_active", "override_commit", "fw_match", "fw_match_num",
+    "fix_vlans", "internet_vlan", "services_vlan",
+    "model", "code"
+  ];
   var el = {};
   ids.forEach(function (id) { el[id] = document.getElementById(id); });
 
@@ -415,20 +928,47 @@ function validate(raw) {
   var renderSeq = 0;
   var touched = false;
 
+  function numberValue(id, fallback) {
+    var n = parseInt(el[id].value, 10);
+    return isNaN(n) ? fallback : n;
+  }
+
   function readRaw() {
-    var slot = parseInt(el.slot.value, 10);
     return {
+      fsan: el.fsan.value.trim().toUpperCase(),
       vendor: el.vendor.value.trim().toUpperCase(),
       equipment: el.equipment.value.trim(),
-      slot: isNaN(slot) ? 0 : slot,
+      hw_ver: el.hw_ver.value.trim(),
+      cp_sync: el.cp_sync.checked,
+      sw_a: el.sw_a.value.trim(),
+      sw_b: el.sw_b.value.trim(),
+      pon_mode: el.pon_mode.value,
+      omcc: el.omcc.value.trim(),
+      iop_mask: numberValue("iop_mask", -1),
+      slot: numberValue("slot", 0),
+      mib_file: el.mib_file.value.trim(),
+      reg_id: el.reg_id.value.trim().toUpperCase(),
+      loid: el.loid.value.trim(),
+      lpwd: el.lpwd.value.trim(),
+      iphost_mac: el.iphost_mac.value.trim().toUpperCase(),
+      iphost_hostname: el.iphost_hostname.value.trim(),
+      iphost_domain: el.iphost_domain.value.trim(),
+      override_active: el.override_active.value,
+      override_commit: el.override_commit.value,
+      fw_match: el.fw_match.value,
+      fw_match_num: numberValue("fw_match_num", 0),
+      fix_vlans: el.fix_vlans.value,
+      internet_vlan: numberValue("internet_vlan", -1),
+      services_vlan: numberValue("services_vlan", -1),
       model: el.model.value.trim(),
-      code: el.code.value.trim().toLowerCase(),
-      path: el.path.value.trim()
+      code: el.code.value.trim().toLowerCase()
     };
   }
 
-  function setValidity(id, bad) {
-    el[id].setAttribute("aria-invalid", bad ? "true" : "false");
+  function setValidity(bad) {
+    ids.forEach(function (id) {
+      el[id].setAttribute("aria-invalid", bad[id] ? "true" : "false");
+    });
   }
 
   function listMessages(errors, warnings) {
@@ -477,12 +1017,10 @@ function validate(raw) {
       msgs.textContent = "";
       var note = document.createElement("li");
       note.className = "note";
-      note.textContent = "Fill in the vendor ID and the equipment ID to generate a profile.";
+      note.textContent = "Fill in the PON serial, vendor ID and equipment ID to generate a profile.";
       msgs.appendChild(note);
       result.hidden = true;
-      ["vendor", "equipment", "slot", "model", "code", "path"].forEach(function (id) {
-        el[id].setAttribute("aria-invalid", "false");
-      });
+      setValidity({});
       dlProfile.disabled = true;
       dlScript.disabled = true;
       copyProfile.disabled = true;
@@ -490,13 +1028,8 @@ function validate(raw) {
       showStats([["Status", "waiting for input"]]);
       return;
     }
-    setValidity("vendor", check.errors.some(function (e) { return e.indexOf("Vendor") === 0; }));
-    setValidity("equipment", check.errors.some(function (e) { return e.indexOf("Equipment") === 0; }));
-    setValidity("slot", check.errors.some(function (e) { return e.indexOf("PON slot") === 0; }));
-    setValidity("model", check.errors.some(function (e) { return e.indexOf("Model") === 0; }));
-    setValidity("code", check.errors.some(function (e) { return e.indexOf("Product") === 0; }));
-    setValidity("path", check.errors.some(function (e) { return e.indexOf("Profile path") === 0; }));
 
+    setValidity(check.bad);
     listMessages(check.errors, check.warnings);
 
     if (check.errors.length) {
@@ -513,7 +1046,7 @@ function validate(raw) {
     var text, script;
     try {
       text = buildProfile(base, raw);
-      script = buildApplyScript(raw, raw.path);
+      script = buildApplyScript(raw);
     } catch (e) {
       var li = document.createElement("li");
       li.className = "err";
@@ -539,16 +1072,19 @@ function validate(raw) {
     copyProfile.disabled = false;
     copyEnv.disabled = false;
 
-    profilePreview.textContent = text.split("\n").slice(0, 28).join("\n") + "\n...";
+    profilePreview.textContent = text.split("\n").slice(0, 30).join("\n") + "\n...";
     envPreview.textContent = script;
 
     var rows = text.split("\n").filter(function (line) {
       return /^[?!0-9]/.test(line);
     }).length;
 
+    var envKeys = (script.match(/^(fw_setenv|fwenv_set) /gm) || []).length;
+
     showStats([
       ["bytes", String(new TextEncoder().encode(text).length)],
-      ["ME rows", String(rows)]
+      ["ME rows", String(rows)],
+      ["env keys", String(envKeys)]
     ]);
 
     if (window.crypto && crypto.subtle && crypto.subtle.digest) {
@@ -623,8 +1159,14 @@ function validate(raw) {
     vendorAuto = true;
     userInput();
   });
-  ["equipment", "slot", "model", "code", "path"].forEach(function (id) {
+
+  ["equipment", "hw_ver", "sw_a", "sw_b", "omcc", "iop_mask", "slot", "mib_file",
+   "reg_id", "loid", "lpwd", "iphost_mac", "iphost_hostname", "iphost_domain",
+   "fw_match", "fw_match_num", "internet_vlan", "services_vlan", "model", "code"].forEach(function (id) {
     el[id].addEventListener("input", userInput);
+  });
+  ["cp_sync", "pon_mode", "override_active", "override_commit", "fix_vlans"].forEach(function (id) {
+    el[id].addEventListener("change", userInput);
   });
 
   dlProfile.addEventListener("click", function () {
@@ -640,11 +1182,38 @@ function validate(raw) {
     if (current.script) { copy(current.script); }
   });
 
-  document.getElementById("clear").addEventListener("click", function () {
-    ["fsan", "vendor", "equipment", "path"].forEach(function (id) { el[id].value = ""; });
+  function reset() {
+    el.fsan.value = "";
+    el.vendor.value = "";
+    el.equipment.value = "";
+    el.hw_ver.value = "";
+    el.cp_sync.checked = true;
+    el.sw_a.value = "";
+    el.sw_b.value = "";
+    el.pon_mode.value = "xgspon";
+    el.omcc.value = "0xA3";
+    el.iop_mask.value = "18";
     el.slot.value = "8";
+    el.mib_file.value = "";
+    el.reg_id.value = "";
+    el.loid.value = "";
+    el.lpwd.value = "";
+    el.iphost_mac.value = "";
+    el.iphost_hostname.value = "";
+    el.iphost_domain.value = "";
+    el.override_active.value = "";
+    el.override_commit.value = "";
+    el.fw_match.value = "";
+    el.fw_match_num.value = "1";
+    el.fix_vlans.value = "1";
+    el.internet_vlan.value = "0";
+    el.services_vlan.value = "36";
     el.model.value = "C6500XK";
     el.code.value = "0x4400";
+  }
+
+  document.getElementById("clear").addEventListener("click", function () {
+    reset();
     vendorAuto = true;
     touched = false;
     render();

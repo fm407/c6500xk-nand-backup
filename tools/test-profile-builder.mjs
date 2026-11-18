@@ -49,8 +49,7 @@ const identity = {
   equipment: "BBBBBBBBBB",
   slot: 8,
   model: "C6500XK",
-  code: "0x4400",
-  path: ""
+  code: "0x4400"
 };
 
 const expectedBody = sampleBody
@@ -125,12 +124,28 @@ assert.ok(bad({ slot: 255 }), "slot 255 is rejected");
 assert.ok(bad({ slot: 8.5 }), "fractional slot is rejected");
 assert.ok(bad({ model: "MODEL WITH A REALLY LONG NAME" }), "overlong model string is rejected");
 assert.ok(bad({ code: "4400" }), "product code without 0x is rejected");
-assert.ok(bad({ path: "/tmp/it's.ini" }), "quote in path is rejected");
+assert.ok(bad({ mib_file: "/tmp/it's.ini" }), "quote in MIB path is rejected");
+assert.ok(bad({ iop_mask: 128 }), "iop mask above 127 is rejected");
+assert.ok(bad({ omcc: "0x80" }), "OMCC version below 0x82 is rejected");
+assert.ok(bad({ internet_vlan: 36, services_vlan: 36 }), "equal VLANs are rejected");
+assert.ok(bad({ fsan: "ABCD1234" }), "eight-character PON serial is rejected");
+assert.ok(bad({ iphost_mac: "AA:BB:CC:DD:EE" }), "short IP host MAC is rejected");
 
 assert.equal(core.validate(identity).errors.length, 0, "the default identity validates");
 const tenWarnings = core.validate({ ...identity, slot: 10, equipment: "SHORT" });
 assert.equal(tenWarnings.errors.length, 0, "non-default slot and length still validate");
-assert.equal(tenWarnings.warnings.length, 2, "both deviations warn");
+assert.equal(tenWarnings.warnings.length, 5, "each deviation warns");
+
+const tagged = core.validate({ ...identity, internet_vlan: 201 });
+assert.ok(
+  tagged.warnings.some((w) => w.includes("Internet VLAN is tagged")),
+  "a tagged Internet VLAN warns about the router tag"
+);
+const noFix = core.validate({ ...identity, fix_vlans: "0" });
+assert.ok(
+  noFix.warnings.some((w) => w.includes("Fix VLANs is not 1")),
+  "disabled VLAN fixes warn"
+);
 
 // ---- the helper script ----
 
@@ -141,10 +156,68 @@ assert.ok(withPath.includes("fw_setenv 8311_pon_slot 8"), "script sets the slot"
 assert.ok(withPath.includes("fw_setenv 8311_mib_file '/ptconf/8311/profile.ini'"), "script sets the pointer");
 assert.ok(withPath.startsWith("#!/bin/sh\n"), "script has a shebang");
 assert.ok(withPath.includes("set -e"), "script stops on error");
+assert.ok(withPath.includes("fw_setenv 8311_pon_mode 'xgspon'"), "script sets the PON mode");
+assert.ok(withPath.includes("fw_setenv 8311_iop_mask 18"), "script sets the interoperability mask");
+assert.ok(withPath.includes("fw_setenv 8311_cp_hw_ver_sync 1"), "script syncs the circuit pack by default");
+assert.ok(withPath.includes("fw_setenv 8311_fix_vlans '1'"), "script keeps VLAN fixes on");
+assert.ok(withPath.includes("fw_setenv 8311_internet_vlan 0"), "script sets the Internet VLAN to untagged");
+assert.ok(withPath.includes("fw_setenv 8311_services_vlan 36"), "script sets the Services VLAN default");
 
 const noPath = core.buildApplyScript(identity, "");
 assert.ok(!noPath.includes("fw_setenv 8311_mib_file /"), "script leaves the pointer out when no path is given");
 assert.ok(noPath.includes("# fw_setenv 8311_mib_file <path-on-the-module>"), "script explains the missing pointer");
+
+const full = {
+  ...identity,
+  fsan: "ABCD12345678",
+  hw_ver: "C6500XK",
+  omcc: "0x9A",
+  sw_a: "01.02.03.04",
+  sw_b: "05.06.07.08",
+  reg_id: "001122334455",
+  loid: "user@example.net",
+  lpwd: "secret",
+  iphost_mac: "AA:BB:CC:DD:EE:FF",
+  iphost_hostname: "ont",
+  iphost_domain: "example.net",
+  override_active: "B",
+  override_commit: "B",
+  fw_match: "^v(\\d+)$",
+  fw_match_num: 2,
+  mib_file: "/ptconf/8311/profile.ini"
+};
+const fullScript = core.buildApplyScript(full);
+assert.ok(fullScript.includes("fw_setenv 8311_gpon_sn 'ABCD12345678'"), "script sets the PON serial");
+assert.ok(fullScript.includes("fw_setenv 8311_hw_ver 'C6500XK'"), "script sets the hardware version");
+assert.ok(fullScript.includes("fw_setenv 8311_omcc_version '0x9A'"), "script sets the OMCC version");
+assert.ok(fullScript.includes("fw_setenv 8311_sw_verA '01.02.03.04'"), "script sets software A");
+assert.ok(fullScript.includes("fw_setenv 8311_reg_id_hex '001122334455'"), "script sets the registration ID");
+assert.ok(fullScript.includes("fw_setenv 8311_iphost_mac 'AA:BB:CC:DD:EE:FF'"), "script sets the IP host MAC");
+assert.ok(fullScript.includes("fw_setenv 8311_override_active 'B'"), "script sets the active bank");
+assert.ok(fullScript.includes("fwenv_set --8311 --base64 fw_match '^v(\\d+)$'"), "script base64-encodes the firmware match");
+assert.ok(fullScript.includes("fw_setenv 8311_fw_match_num 2"), "script sets the firmware match number");
+
+// ---- OMCC version rewriting ----
+
+const omcc = core.buildBody(base, { ...identity, omcc: "0x9A" });
+assert.ok(
+  omcc.includes('257 0x0000 "BBBBBBBBBB" 0x9a 0x4400'),
+  "the ONU2-G OMCC version follows the input"
+);
+assert.ok(
+  omcc.includes('257 0x0000 "BBBBBBBBBB" 0xa3 0x4400') === false,
+  "the default OMCC version is replaced"
+);
+
+// ---- hardware version rewriting ----
+
+const synced = core.buildBody(base, { ...identity, hw_ver: "EXAMPLE1", cp_sync: true });
+assert.ok(synced.includes('256 0 "AAAA" "EXAMPLE1"'), "ONU-G hardware version follows the input");
+assert.equal((synced.match(/"EXAMPLE1"/g) || []).length, 3, "ONU-G and both circuit packs carry the version");
+
+const unsynced = core.buildBody(base, { ...identity, hw_ver: "EXAMPLE1", cp_sync: false });
+assert.ok(unsynced.includes('256 0 "AAAA" "EXAMPLE1"'), "ONU-G hardware version still follows the input");
+assert.equal((unsynced.match(/"EXAMPLE1"/g) || []).length, 1, "circuit packs stay on the model string when sync is off");
 
 // ---- the artifact itself ----
 

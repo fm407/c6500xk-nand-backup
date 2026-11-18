@@ -156,7 +156,7 @@
       <li>Reboot after you apply the commands. Then check the WAN lease.</li>
     </ul>
     <p>
-      If you lose internet, connect to <code>192.168.11.1</code>. Run <code>fw_printenv | grep 8311_</code>.
+      If you lose internet, connect to the module management address (default <code>192.168.11.1</code>). Run <code>fw_printenv | grep 8311_</code>.
       Compare <code>8311_internet_vlan</code> with the router WAN setting. Correct the value and reboot.
     </p>
   </section>
@@ -174,7 +174,7 @@
                  spellcheck="false" placeholder="ABCD12345678" aria-describedby="fsan-h">
           <span class="hint" id="fsan-h">
             12 characters: 4 letters or digits, then 8 hex digits. The page uses the first 4 as the vendor ID.
-            The full value goes only into the command output in this tab.
+            The full value appears only in the generated files in this tab.
           </span>
         </div>
 
@@ -280,6 +280,7 @@
           <span class="hint" id="mib-h">
             Use a path under <code>/etc/mibs/</code>, or the <code>../../ptconf/...</code> form.
             A plain <code>/ptconf/...</code> path is ignored, and the stock MIB is used.
+            The file must exist before you reboot.
             The daemon writes the effective MIB back into this file.
           </span>
         </div>
@@ -414,20 +415,6 @@
         </span>
       </fieldset>
 
-      <details>
-        <summary>Advanced model constants</summary>
-        <div class="field">
-          <label for="model">Model string</label>
-          <input id="model" name="model" type="text" maxlength="20" autocomplete="off" spellcheck="false" value="C6500XK">
-          <span class="hint">Written to ONU-G and the circuit-pack rows. Only <code>C6500XK</code> is validated.</span>
-        </div>
-        <div class="field">
-          <label for="code">Vendor product code</label>
-          <input id="code" name="code" type="text" maxlength="6" autocomplete="off" spellcheck="false" value="0x4400">
-          <span class="hint">Hex, written to ONU2-G. Only <code>0x4400</code> is validated.</span>
-        </div>
-      </details>
-
       <div class="actions">
         <button type="button" id="clear">Clear</button>
       </div>
@@ -461,7 +448,7 @@
   <section class="foot">
     <h2>What this page does and does not do</h2>
     <ul>
-      <li>It rewrites three kinds of value in a profile whose other rows are model constants: the vendor ID, the equipment ID, and the instance numbers that encode the PON slot.</li>
+      <li>It rewrites the vendor ID, the equipment ID, the OMCC version, the hardware version, and the instance numbers that encode the PON slot.</li>
       <li>It writes the hardware version into ONU-G, and into the circuit-pack rows when Sync is on.</li>
       <li>It leaves the ONU-G serial at <code>00000000</code> on purpose. The daemon derives the serial from the PLOAM serial, and a literal here conflicts with your own registration.</li>
       <li>It writes the same values as <code>8311_</code> environment commands. The boot script copies them out of the environment and overwrites the profile rows. The helper writes both environment copies.</li>
@@ -469,6 +456,14 @@
       <li>Nothing you type is stored, transmitted or logged. There is no analytics, no cookie, no storage call and no request after the page loads. The policy in the page header blocks connections outright.</li>
       <li>The result mirrors one model, validated on one line against one OLT. It is not a guarantee of provisioning, and it is not a substitute for reading your own unit first.</li>
     </ul>
+
+    <h2>How to apply the files</h2>
+    <ol>
+      <li>Copy the profile to the module. Use a persistent path, for example <code>/ptconf/8311/profile.ini</code>.</li>
+      <li>Run the helper script on the module as root.</li>
+      <li>Reboot the module. Then check the WAN lease.</li>
+    </ol>
+    <p>The path in the MIB field must match the file that you copy.</p>
     <p>
       Source and method: <a href="https://github.com/fm407/c6500xk-nand-backup#f6-profile-builder">README appendix F</a>.
       Base profile: <a href="https://github.com/fm407/c6500xk-nand-backup/blob/main/profiles/c6500xk-sample.ini">profiles/c6500xk-sample.ini</a>.
@@ -949,8 +944,7 @@ function validate(rawInput) {
     "reg_id", "loid", "lpwd",
     "iphost_mac", "iphost_hostname", "iphost_domain",
     "override_active", "override_commit", "fw_match", "fw_match_num",
-    "fix_vlans", "internet_vlan", "services_vlan",
-    "model", "code"
+    "fix_vlans", "internet_vlan", "services_vlan"
   ];
   var el = {};
   ids.forEach(function (id) { el[id] = document.getElementById(id); });
@@ -1002,8 +996,8 @@ function validate(rawInput) {
       fix_vlans: el.fix_vlans.value,
       internet_vlan: numberValue("internet_vlan", -1),
       services_vlan: numberValue("services_vlan", -1),
-      model: el.model.value.trim(),
-      code: el.code.value.trim().toLowerCase()
+      model: "C6500XK",
+      code: "0x4400"
     };
   }
 
@@ -1204,7 +1198,7 @@ function validate(rawInput) {
 
   ["equipment", "hw_ver", "sw_a", "sw_b", "omcc", "iop_mask", "slot", "mib_file",
    "reg_id", "loid", "lpwd", "iphost_mac", "iphost_hostname", "iphost_domain",
-   "fw_match", "fw_match_num", "internet_vlan", "services_vlan", "model", "code"].forEach(function (id) {
+   "fw_match", "fw_match_num", "internet_vlan", "services_vlan"].forEach(function (id) {
     el[id].addEventListener("input", userInput);
   });
   ["cp_sync", "pon_mode", "override_active", "override_commit", "fix_vlans"].forEach(function (id) {
@@ -1250,8 +1244,6 @@ function validate(rawInput) {
     el.fix_vlans.value = "1";
     el.internet_vlan.value = "0";
     el.services_vlan.value = "36";
-    el.model.value = "C6500XK";
-    el.code.value = "0x4400";
   }
 
   document.getElementById("clear").addEventListener("click", function () {

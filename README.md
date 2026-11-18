@@ -682,7 +682,7 @@ The sample above needs two values filled in and, if your unit reported a differe
 
 https://fm407.github.io/c6500xk-nand-backup/profile-builder/
 
-The form covers every field on the LuCI PON tab and the ISP Fixes tab. It writes the profile rows and the matching `8311_` environment commands. Fill only the values that your own unit reports. The page prefills model and firmware defaults.
+The form covers the scalar fields on the LuCI PON tab and the ISP Fixes tab. It writes the profile rows and the matching `8311_` environment commands. Fill only the values that your own unit reports. The page prefills model and firmware defaults.
 
 The form groups these fields:
 
@@ -724,6 +724,8 @@ The page rewrites these profile rows:
 Every other row is the model constant from the sample. The ONU-G serial stays `00000000` because the daemon fills it from PLOAM.
 
 The page also writes a helper script. The script sets the identity, versions, PON mode, masks, registration values, IP host, bank overrides, firmware match, VLANs, and the MIB path. It uses `fwenv_set` for normal keys. The wrapper writes both environment copies. It uses `fwenv_set --8311 --base64 fw_match` for the one base64 key. The script ends with a loop that reads both copies, so you can see a stale value.
+
+To apply the files, copy the profile to a persistent path on the module. Then run the helper script as root. Reboot the module. The path in the MIB field must match the copied file.
 
 The page runs entirely in the tab. It has no analytics, no cookie and no storage call. It makes no network request after it loads. The content policy in its header blocks connections outright. Nothing you type leaves the browser. Only the two generated files are written, and only when you click download.
 
